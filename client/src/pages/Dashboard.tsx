@@ -60,36 +60,50 @@ const Dashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // In a real app, you'd have a dedicated dashboard endpoint
-      const [surveysRes, sessionsRes] = await Promise.all([
-        axios.get('/surveys'),
-        axios.get('/sessions/recent') // This endpoint would need to be implemented
-      ]);
+      // Fetch surveys and get vendor count
+      const surveysRes = await axios.get('/surveys');
+      const surveys = surveysRes.data.data || [];
 
-      // Calculate stats from the data
-      const surveys = surveysRes.data.data;
-      const sessions = sessionsRes.data.data || [];
+      // Calculate vendor count by fetching vendors for each survey
+      let totalVendors = 0;
+      for (const survey of surveys) {
+        try {
+          const vendorsRes = await axios.get(`/surveys/${survey._id}/vendors`);
+          totalVendors += vendorsRes.data.data?.length || 0;
+        } catch (err) {
+          console.error('Error fetching vendors for survey:', survey._id);
+        }
+      }
+
+      // Fetch session stats and recent sessions
+      let sessionStats = null;
+      let recentSessionsData = [];
+
+      try {
+        const [statsRes, recentRes] = await Promise.all([
+          axios.get('/sessions/stats'),
+          axios.get('/sessions/recent?limit=5')
+        ]);
+        sessionStats = statsRes.data.data;
+        recentSessionsData = recentRes.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch session data:', error);
+      }
 
       const calculatedStats: Stats = {
         totalSurveys: surveys.length,
         activeSurveys: surveys.filter((s: any) => s.isActive).length,
-        totalVendors: surveys.reduce((acc: number, s: any) => acc + (s.vendorCount || 0), 0),
-        totalSessions: sessions.length,
-        completedSessions: sessions.filter((s: any) => s.status === 'complete').length,
-        quotaFullSessions: sessions.filter((s: any) => s.status === 'quota_full').length,
-        terminatedSessions: sessions.filter((s: any) => s.status === 'terminate').length,
-        todaySessions: sessions.filter((s: any) => {
-          const today = new Date();
-          const sessionDate = new Date(s.createdAt);
-          return sessionDate.toDateString() === today.toDateString();
-        }).length,
-        conversionRate: sessions.length > 0
-          ? (sessions.filter((s: any) => s.status === 'complete').length / sessions.length) * 100
-          : 0
+        totalVendors: totalVendors,
+        totalSessions: sessionStats?.totalSessions || 0,
+        completedSessions: sessionStats?.completedSessions || 0,
+        quotaFullSessions: sessionStats?.quotaFullSessions || 0,
+        terminatedSessions: sessionStats?.terminatedSessions || 0,
+        todaySessions: sessionStats?.todaySessions || 0,
+        conversionRate: parseFloat(sessionStats?.conversionRate || 0)
       };
 
       setStats(calculatedStats);
-      setRecentSessions(sessions.slice(0, 5));
+      setRecentSessions(recentSessionsData);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       // Set default values in case of error
@@ -123,14 +137,15 @@ const Dashboard: React.FC = () => {
     { name: 'Terminated', value: stats?.terminatedSessions || 0, color: '#f44336' },
   ];
 
+  // Use empty data for now until we have real session data
   const timeSeriesData = [
-    { name: 'Mon', sessions: 45, completed: 20 },
-    { name: 'Tue', sessions: 52, completed: 28 },
-    { name: 'Wed', sessions: 48, completed: 22 },
-    { name: 'Thu', sessions: 65, completed: 35 },
-    { name: 'Fri', sessions: 58, completed: 30 },
-    { name: 'Sat', sessions: 35, completed: 15 },
-    { name: 'Sun', sessions: 30, completed: 12 },
+    { name: 'Mon', sessions: 0, completed: 0 },
+    { name: 'Tue', sessions: 0, completed: 0 },
+    { name: 'Wed', sessions: 0, completed: 0 },
+    { name: 'Thu', sessions: 0, completed: 0 },
+    { name: 'Fri', sessions: 0, completed: 0 },
+    { name: 'Sat', sessions: 0, completed: 0 },
+    { name: 'Sun', sessions: 0, completed: 0 },
   ];
 
   return (

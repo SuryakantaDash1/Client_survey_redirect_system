@@ -11,6 +11,7 @@ const authRoutes = require('./routes/authRoutes');
 const surveyRoutes = require('./routes/surveyRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const redirectRoutes = require('./routes/redirectRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/', apiLimiter);
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/surveys', surveyRoutes);
+app.use('/api/sessions', sessionRoutes);
 app.use('/api', vendorRoutes);
 app.use('/', redirectRoutes); // Redirect routes at root level
 

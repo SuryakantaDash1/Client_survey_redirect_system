@@ -76,3 +76,9 @@ coverage/
 # Temporary files
 tmp/
 temp/
+# Reports folder
+reports/
+
+# Documentation files
+POSTMAN_API_DOCUMENTATION.md
+DEVELOPMENT_GUIDE.md

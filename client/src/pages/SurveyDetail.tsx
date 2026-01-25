@@ -102,11 +102,8 @@ const SurveyDetail: React.FC = () => {
     { name: 'Active', value: stats.activeSessions, color: '#2196f3' }
   ];
 
-  const vendorPerformanceData = [
-    { vendor: 'Vendor A', completed: 45, quotaFull: 12, terminated: 8 },
-    { vendor: 'Vendor B', completed: 38, quotaFull: 15, terminated: 10 },
-    { vendor: 'Vendor C', completed: 52, quotaFull: 8, terminated: 5 }
-  ];
+  // Will be populated with real vendor data when available
+  const vendorPerformanceData: any[] = [];
 
   return (
     <Box>
