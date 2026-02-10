@@ -17,6 +17,10 @@ router.use(protect);
 // Survey-specific vendor routes (moved to survey context)
 // These routes will be accessed as /api/surveys/:surveyId/vendors
 
+// Get all vendors (for filters)
+router.route('/vendors')
+  .get(getVendors);
+
 // Vendor-specific routes
 router.route('/vendors/:id')
   .get(getVendor)

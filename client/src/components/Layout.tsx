@@ -14,11 +14,18 @@ import {
   Menu,
   MenuItem,
   Divider,
-  ListItemButton
+  ListItemButton,
+  Collapse
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   Assignment as SurveyIcon,
+  History as SessionIcon,
+  CheckCircle as CompletedIcon,
+  Cancel as TerminatedIcon,
+  Block as QuotaIcon,
+  ExpandLess,
+  ExpandMore,
   AccountCircle,
   Logout,
   Menu as MenuIcon
@@ -33,6 +40,7 @@ const Layout: React.FC = () => {
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(true);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -51,10 +59,9 @@ const Layout: React.FC = () => {
     navigate('/login');
   };
 
-  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'Surveys', icon: <SurveyIcon />, path: '/surveys' },
-  ];
+  const handleSessionsClick = () => {
+    setSessionsOpen(!sessionsOpen);
+  };
 
   const drawer = (
     <div>
@@ -65,17 +72,72 @@ const Layout: React.FC = () => {
       </Toolbar>
       <Divider />
       <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
+        {/* Dashboard */}
+        <ListItem disablePadding>
+          <ListItemButton
+            selected={location.pathname === '/dashboard'}
+            onClick={() => navigate('/dashboard')}
+          >
+            <ListItemIcon><DashboardIcon /></ListItemIcon>
+            <ListItemText primary="Dashboard" />
+          </ListItemButton>
+        </ListItem>
+
+        {/* Surveys */}
+        <ListItem disablePadding>
+          <ListItemButton
+            selected={location.pathname.includes('/surveys')}
+            onClick={() => navigate('/surveys')}
+          >
+            <ListItemIcon><SurveyIcon /></ListItemIcon>
+            <ListItemText primary="Surveys" />
+          </ListItemButton>
+        </ListItem>
+
+        {/* Sessions with submenu */}
+        <ListItem disablePadding>
+          <ListItemButton onClick={handleSessionsClick}>
+            <ListItemIcon><SessionIcon /></ListItemIcon>
+            <ListItemText primary="Sessions" />
+            {sessionsOpen ? <ExpandLess /> : <ExpandMore />}
+          </ListItemButton>
+        </ListItem>
+        <Collapse in={sessionsOpen} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
             <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => navigate(item.path)}
+              sx={{ pl: 4 }}
+              selected={location.pathname === '/sessions'}
+              onClick={() => navigate('/sessions')}
             >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
+              <ListItemIcon><SessionIcon /></ListItemIcon>
+              <ListItemText primary="All Sessions" />
             </ListItemButton>
-          </ListItem>
-        ))}
+            <ListItemButton
+              sx={{ pl: 4 }}
+              selected={location.pathname === '/sessions/completed'}
+              onClick={() => navigate('/sessions/completed')}
+            >
+              <ListItemIcon><CompletedIcon color="success" /></ListItemIcon>
+              <ListItemText primary="Completed" />
+            </ListItemButton>
+            <ListItemButton
+              sx={{ pl: 4 }}
+              selected={location.pathname === '/sessions/terminated'}
+              onClick={() => navigate('/sessions/terminated')}
+            >
+              <ListItemIcon><TerminatedIcon color="error" /></ListItemIcon>
+              <ListItemText primary="Terminated" />
+            </ListItemButton>
+            <ListItemButton
+              sx={{ pl: 4 }}
+              selected={location.pathname === '/sessions/quota-full'}
+              onClick={() => navigate('/sessions/quota-full')}
+            >
+              <ListItemIcon><QuotaIcon color="warning" /></ListItemIcon>
+              <ListItemText primary="Quota Full" />
+            </ListItemButton>
+          </List>
+        </Collapse>
       </List>
     </div>
   );
@@ -101,7 +163,8 @@ const Layout: React.FC = () => {
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {location.pathname.includes('dashboard') ? 'Dashboard' :
-             location.pathname.includes('surveys') ? 'Surveys' : 'Survey Redirect System'}
+             location.pathname.includes('surveys') ? 'Surveys' :
+             location.pathname.includes('sessions') ? 'Sessions' : 'Survey Redirect System'}
           </Typography>
           <div>
             <IconButton

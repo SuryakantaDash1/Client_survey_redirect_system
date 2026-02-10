@@ -10,6 +10,10 @@ import Dashboard from './pages/Dashboard';
 import Surveys from './pages/Surveys';
 import SurveyDetail from './pages/SurveyDetail';
 import Vendors from './pages/Vendors';
+import Sessions from './pages/Sessions';
+import CompletedSessions from './pages/CompletedSessions';
+import TerminatedSessions from './pages/TerminatedSessions';
+import QuotaFullSessions from './pages/QuotaFullSessions';
 
 const theme = createTheme({
   palette: {
@@ -36,6 +40,10 @@ function App() {
               <Route path="surveys" element={<Surveys />} />
               <Route path="surveys/:id" element={<SurveyDetail />} />
               <Route path="surveys/:surveyId/vendors" element={<Vendors />} />
+              <Route path="sessions" element={<Sessions />} />
+              <Route path="sessions/completed" element={<CompletedSessions />} />
+              <Route path="sessions/terminated" element={<TerminatedSessions />} />
+              <Route path="sessions/quota-full" element={<QuotaFullSessions />} />
             </Route>
           </Routes>
         </AuthProvider>

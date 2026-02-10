@@ -57,6 +57,7 @@ const SurveyDetail: React.FC = () => {
   const navigate = useNavigate();
   const [survey, setSurvey] = useState<SurveyDetails | null>(null);
   const [stats, setStats] = useState<SurveyStats | null>(null);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
 
@@ -66,12 +67,14 @@ const SurveyDetail: React.FC = () => {
 
   const fetchSurveyDetails = async () => {
     try {
-      const [surveyRes, statsRes] = await Promise.all([
+      const [surveyRes, statsRes, vendorsRes] = await Promise.all([
         axios.get(`/surveys/${id}`),
-        axios.get(`/surveys/${id}/stats`)
+        axios.get(`/surveys/${id}/stats`),
+        axios.get(`/surveys/${id}/vendors`)
       ]);
       setSurvey(surveyRes.data.data);
       setStats(statsRes.data.data);
+      setVendors(vendorsRes.data.data || []);
     } catch (error) {
       console.error('Failed to fetch survey details:', error);
     } finally {
@@ -102,8 +105,13 @@ const SurveyDetail: React.FC = () => {
     { name: 'Active', value: stats.activeSessions, color: '#2196f3' }
   ];
 
-  // Will be populated with real vendor data when available
-  const vendorPerformanceData: any[] = [];
+  // Build vendor performance data from fetched vendors
+  const vendorPerformanceData = vendors.map(vendor => ({
+    vendor: vendor.name,
+    completed: vendor.completedSessions || 0,
+    quotaFull: vendor.quotaFullSessions || 0,
+    terminated: vendor.terminatedSessions || 0
+  }));
 
   return (
     <Box>
@@ -212,20 +220,21 @@ const SurveyDetail: React.FC = () => {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={sessionStatusData}
+                    data={sessionStatusData.filter(item => item.value > 0)}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry) => `${entry.name}: ${entry.value}`}
+                    label={(entry) => entry.value > 0 ? `${entry.name}: ${entry.value}` : ''}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {sessionStatusData.map((entry, index) => (
+                    {sessionStatusData.filter(item => item.value > 0).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip />
+                  <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
             </Paper>

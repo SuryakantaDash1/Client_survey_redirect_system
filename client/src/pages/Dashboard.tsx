@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
       try {
         const [statsRes, recentRes] = await Promise.all([
           axios.get('/sessions/stats'),
-          axios.get('/sessions/recent?limit=5')
+          axios.get('/sessions/recent?limit=50')  // Get more sessions for weekly chart
         ]);
         sessionStats = statsRes.data.data;
         recentSessionsData = recentRes.data.data || [];
@@ -137,16 +137,39 @@ const Dashboard: React.FC = () => {
     { name: 'Terminated', value: stats?.terminatedSessions || 0, color: '#f44336' },
   ];
 
-  // Use empty data for now until we have real session data
-  const timeSeriesData = [
-    { name: 'Mon', sessions: 0, completed: 0 },
-    { name: 'Tue', sessions: 0, completed: 0 },
-    { name: 'Wed', sessions: 0, completed: 0 },
-    { name: 'Thu', sessions: 0, completed: 0 },
-    { name: 'Fri', sessions: 0, completed: 0 },
-    { name: 'Sat', sessions: 0, completed: 0 },
-    { name: 'Sun', sessions: 0, completed: 0 },
-  ];
+  // Calculate weekly session data from recent sessions
+  const calculateWeeklyData = () => {
+    const weekData = [
+      { name: 'Mon', sessions: 0, completed: 0 },
+      { name: 'Tue', sessions: 0, completed: 0 },
+      { name: 'Wed', sessions: 0, completed: 0 },
+      { name: 'Thu', sessions: 0, completed: 0 },
+      { name: 'Fri', sessions: 0, completed: 0 },
+      { name: 'Sat', sessions: 0, completed: 0 },
+      { name: 'Sun', sessions: 0, completed: 0 },
+    ];
+
+    // If we have session data, calculate weekly stats
+    if (recentSessions.length > 0) {
+      recentSessions.forEach(session => {
+        const date = new Date(session.createdAt);
+        const dayIndex = date.getDay();
+        const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayIndex];
+
+        const day = weekData.find(d => d.name === dayName);
+        if (day) {
+          day.sessions++;
+          if (session.status === 'complete') {
+            day.completed++;
+          }
+        }
+      });
+    }
+
+    return weekData;
+  };
+
+  const timeSeriesData = calculateWeeklyData();
 
   return (
     <Box>
@@ -268,64 +291,6 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Recent Sessions Table */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Recent Sessions
-            </Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Survey</TableCell>
-                    <TableCell>Vendor</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Time</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {recentSessions.length > 0 ? (
-                    recentSessions.map((session) => (
-                      <TableRow key={session._id}>
-                        <TableCell>{session.surveyName}</TableCell>
-                        <TableCell>{session.vendorName}</TableCell>
-                        <TableCell>
-                          <Box
-                            component="span"
-                            sx={{
-                              px: 1,
-                              py: 0.5,
-                              borderRadius: 1,
-                              backgroundColor:
-                                session.status === 'complete' ? '#e8f5e9' :
-                                session.status === 'quota_full' ? '#fff3e0' :
-                                '#ffebee',
-                              color:
-                                session.status === 'complete' ? '#2e7d32' :
-                                session.status === 'quota_full' ? '#e65100' :
-                                '#c62828',
-                              fontSize: '0.875rem'
-                            }}
-                          >
-                            {session.status}
-                          </Box>
-                        </TableCell>
-                        <TableCell>{new Date(session.createdAt).toLocaleString()}</TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center">
-                        No recent sessions
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
       </Grid>
     </Box>
   );

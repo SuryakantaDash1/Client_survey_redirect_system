@@ -7,7 +7,10 @@ const Session = require('../models/Session');
 // @access  Private
 exports.getVendors = async (req, res, next) => {
   try {
-    const vendors = await Vendor.find({ surveyId: req.params.surveyId });
+    // If surveyId is provided, get vendors for that survey
+    // Otherwise, get all vendors (for filters)
+    const filter = req.params.surveyId ? { surveyId: req.params.surveyId } : {};
+    const vendors = await Vendor.find(filter).populate('surveyId', 'name');
 
     res.json({
       success: true,
@@ -129,7 +132,8 @@ exports.getVendorUrl = async (req, res, next) => {
       return res.status(404).json({ error: 'Vendor not found' });
     }
 
-    const entryUrl = vendor.getEntryUrl(process.env.BASE_URL);
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    const entryUrl = vendor.getEntryUrl(baseUrl);
 
     res.json({
       success: true,

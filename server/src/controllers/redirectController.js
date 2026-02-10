@@ -101,6 +101,32 @@ exports.handleVendorEntry = async (req, res, next) => {
 
     const redirectUrl = buildUrlWithParams(survey.clientUrl, redirectParams);
 
+    // For testing: if the survey URL is a fake/test domain, return session info instead of redirecting
+    const testDomains = ['newsurveyurl.com', 'surveyplatform.com', 'example.com', 'test.com'];
+    const urlHost = new URL(survey.clientUrl).hostname;
+
+    if (testDomains.some(domain => urlHost.includes(domain))) {
+      console.log('Test mode: Fake survey URL detected, returning session info');
+      return res.json({
+        success: true,
+        message: 'Session created successfully (redirect disabled for testing)',
+        sessionId: session.sessionId,
+        redirectUrl: redirectUrl,
+        testInstructions: {
+          complete: `GET ${process.env.BASE_URL}/r/${session.sessionId}?status=complete`,
+          terminate: `GET ${process.env.BASE_URL}/r/${session.sessionId}?status=terminate`,
+          quotaFull: `GET ${process.env.BASE_URL}/r/${session.sessionId}?status=quota_full`
+        },
+        session: {
+          id: session._id,
+          sessionId: session.sessionId,
+          vendorName: vendor.name,
+          surveyName: survey.name,
+          status: session.status
+        }
+      });
+    }
+
     // Log response time
     console.log(`Vendor entry redirect completed in ${Date.now() - startTime}ms`);
 
@@ -191,8 +217,33 @@ exports.handleSurveyReturn = async (req, res, next) => {
     // Log analytics
     await logAnalytics('exit', session, session.status);
 
-    // Build final redirect URL with original parameters
+    
     const finalUrl = buildUrlWithParams(redirectUrl, Object.fromEntries(session.queryParams));
+
+    const testDomains = ['vendorplatform.com', 'example.com', 'test.com', 'vendor.com', 'newvendorurl.com', 'vendor3.com', 'vendorNew.com'];
+    try {
+      const urlHost = new URL(redirectUrl).hostname;
+      if (testDomains.some(domain => urlHost.includes(domain))) {
+        console.log('Test mode: Fake vendor URL detected, returning completion info');
+        return res.json({
+          success: true,
+          message: `Session completed with status: ${session.status}`,
+          sessionId: session.sessionId,
+          redirectUrl: finalUrl,
+          session: {
+            id: session._id,
+            sessionId: session.sessionId,
+            vendorName: vendor.name,
+            status: session.status,
+            entryTime: session.entryTime,
+            exitTime: session.exitTime
+          }
+        });
+      }
+    } catch (urlError) {
+      // If URL parsing fails, continue with redirect
+      console.log('URL parsing error, attempting redirect:', urlError);
+    }
 
     // Log response time
     console.log(`Survey return redirect completed in ${Date.now() - startTime}ms`);
