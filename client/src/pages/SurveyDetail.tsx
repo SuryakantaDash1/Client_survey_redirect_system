@@ -39,6 +39,10 @@ interface SurveyDetails {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  completePageMessage: string;
+  terminatePageMessage: string;
+  quotaFullPageMessage: string;
+  securityTermPageMessage: string;
 }
 
 interface SurveyStats {
@@ -144,6 +148,7 @@ const SurveyDetail: React.FC = () => {
       <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
         <Tab label="Overview" />
         <Tab label="Statistics" />
+        <Tab label="Thank You Pages" />
         <Tab label="Configuration" />
       </Tabs>
 
@@ -307,8 +312,77 @@ const SurveyDetail: React.FC = () => {
         </Grid>
       )}
 
-      {/* Configuration Tab */}
+      {/* Thank You Pages Tab */}
       {tabValue === 2 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#e8f5e9', height: '100%' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                  Complete Page
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 1
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                  {survey.completePageMessage}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#ffebee', height: '100%' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#c62828', fontWeight: 'bold' }}>
+                  Terminate Page
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 2
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                  {survey.terminatePageMessage}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#fff3e0', height: '100%' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#e65100', fontWeight: 'bold' }}>
+                  Quota Full Page
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 3
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                  {survey.quotaFullPageMessage}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#f3e5f5', height: '100%' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#6a1b9a', fontWeight: 'bold' }}>
+                  Security Term Page
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 4
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                  {survey.securityTermPageMessage}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Configuration Tab */}
+      {tabValue === 3 && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 3 }}>

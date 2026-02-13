@@ -38,9 +38,11 @@ interface Vendor {
   _id: string;
   name: string;
   vendorUuid: string;
+  baseRedirectUrl: string;
   completeUrl: string;
   quotaFullUrl: string;
   terminateUrl: string;
+  securityTermUrl: string;
   isActive: boolean;
   totalSessions: number;
   completedSessions: number;
@@ -61,9 +63,7 @@ const Vendors: React.FC = () => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
-    completeUrl: '',
-    quotaFullUrl: '',
-    terminateUrl: '',
+    baseRedirectUrl: '',
     isActive: true
   });
 
@@ -99,18 +99,14 @@ const Vendors: React.FC = () => {
       setEditingVendor(vendor);
       setFormData({
         name: vendor.name,
-        completeUrl: vendor.completeUrl,
-        quotaFullUrl: vendor.quotaFullUrl,
-        terminateUrl: vendor.terminateUrl,
+        baseRedirectUrl: vendor.baseRedirectUrl,
         isActive: vendor.isActive
       });
     } else {
       setEditingVendor(null);
       setFormData({
         name: '',
-        completeUrl: '',
-        quotaFullUrl: '',
-        terminateUrl: '',
+        baseRedirectUrl: '',
         isActive: true
       });
     }
@@ -124,6 +120,12 @@ const Vendors: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
+      // Validate base redirect URL
+      if (!formData.baseRedirectUrl.startsWith('http://') && !formData.baseRedirectUrl.startsWith('https://')) {
+        showSnackbar('Base Redirect URL must start with http:// or https://');
+        return;
+      }
+
       if (editingVendor) {
         await axios.put(`/vendors/${editingVendor._id}`, formData);
       } else {
@@ -287,37 +289,22 @@ const Vendors: React.FC = () => {
           />
           <TextField
             margin="dense"
-            label="Complete URL"
+            label="Base Redirect URL"
             fullWidth
             variant="outlined"
-            placeholder="https://vendor.com/complete"
-            helperText="URL to redirect when survey is completed"
-            value={formData.completeUrl}
-            onChange={(e) => setFormData({ ...formData, completeUrl: e.target.value })}
+            placeholder="https://survey.trendopinion.com/simpleProcess.php"
+            helperText="System will auto-generate 4 URLs: status=1 (Complete), status=2 (Terminate), status=3 (Quota Full), status=4 (Security)"
+            value={formData.baseRedirectUrl}
+            onChange={(e) => setFormData({ ...formData, baseRedirectUrl: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <TextField
-            margin="dense"
-            label="Quota Full URL"
-            fullWidth
-            variant="outlined"
-            placeholder="https://vendor.com/quota-full"
-            helperText="URL to redirect when quota is full"
-            value={formData.quotaFullUrl}
-            onChange={(e) => setFormData({ ...formData, quotaFullUrl: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Terminate URL"
-            fullWidth
-            variant="outlined"
-            placeholder="https://vendor.com/terminate"
-            helperText="URL to redirect when survey is terminated"
-            value={formData.terminateUrl}
-            onChange={(e) => setFormData({ ...formData, terminateUrl: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+          <Alert severity="info" sx={{ mb: 2 }}>
+            The system will automatically create 4 status URLs from your base URL:
+            <br/>• Complete: ?status=1&pid={'{{TOID}}'}
+            <br/>• Terminate: ?status=2&pid={'{{TOID}}'}
+            <br/>• Quota Full: ?status=3&pid={'{{TOID}}'}
+            <br/>• Security: ?status=4&pid={'{{TOID}}'}
+          </Alert>
           <FormControlLabel
             control={
               <Switch
@@ -336,22 +323,25 @@ const Vendors: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* URL Display Dialog */}
+      {/* URL Display Dialog - Shows Entry URL and All 4 Generated URLs */}
       <Dialog open={openUrlDialog} onClose={() => setOpenUrlDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Vendor Entry URL</DialogTitle>
+        <DialogTitle>Vendor URLs</DialogTitle>
         <DialogContent>
+          <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+            Entry URL (Share with Vendor)
+          </Typography>
           <Typography variant="body2" color="textSecondary" gutterBottom>
-            Share this URL with the vendor to route their traffic through the redirect system:
+            This is the URL vendors use to send respondents:
           </Typography>
           <Box
             sx={{
-              mt: 2,
               p: 2,
               bgcolor: 'grey.100',
               borderRadius: 1,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              mb: 3
             }}
           >
             <Typography
@@ -364,8 +354,56 @@ const Vendors: React.FC = () => {
               <CopyIcon />
             </IconButton>
           </Box>
+
+          <Typography variant="h6" gutterBottom>
+            Return URLs (Auto-Generated)
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom sx={{ mb: 2 }}>
+            These URLs are where respondents will be redirected based on survey completion status:
+          </Typography>
+
+          {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid)) && (
+            <>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="success.main">Complete URL (status=1)</Typography>
+                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.completeUrl}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="error.main">Terminate URL (status=2)</Typography>
+                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.terminateUrl}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="warning.main">Quota Full URL (status=3)</Typography>
+                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.quotaFullUrl}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="info.main">Security Term URL (status=4)</Typography>
+                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.securityTermUrl}
+                  </Typography>
+                </Box>
+              </Box>
+            </>
+          )}
+
           <Alert severity="info" sx={{ mt: 2 }}>
-            Vendors can append any query parameters to this URL, and they will be passed through to the survey and back to the vendor's return URLs.
+            Query parameters from the entry URL will be automatically appended to these return URLs.
           </Alert>
         </DialogContent>
         <DialogActions>

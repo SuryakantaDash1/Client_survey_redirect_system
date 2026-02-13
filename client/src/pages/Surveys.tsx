@@ -53,7 +53,11 @@ const Surveys: React.FC = () => {
     name: '',
     description: '',
     clientUrl: '',
-    isActive: true
+    isActive: true,
+    completePageMessage: 'Thank you for your participation. The survey has been completed successfully. Your inputs are valuable and will help us improve healthcare insights.',
+    terminatePageMessage: 'Thank you for your participation. Based on your responses, you do not meet the criteria for this study, and the survey has been terminated. We will reach out to you for future survey opportunities.',
+    quotaFullPageMessage: 'Thank you for your participation. The required quota for this survey has already been completed. We appreciate your time and interest.',
+    securityTermPageMessage: 'Thank you for your participation'
   });
 
   useEffect(() => {
@@ -78,7 +82,11 @@ const Surveys: React.FC = () => {
         name: survey.name,
         description: survey.description || '',
         clientUrl: survey.clientUrl,
-        isActive: survey.isActive
+        isActive: survey.isActive,
+        completePageMessage: 'Thank you for your participation. The survey has been completed successfully. Your inputs are valuable and will help us improve healthcare insights.',
+        terminatePageMessage: 'Thank you for your participation. Based on your responses, you do not meet the criteria for this study, and the survey has been terminated. We will reach out to you for future survey opportunities.',
+        quotaFullPageMessage: 'Thank you for your participation. The required quota for this survey has already been completed. We appreciate your time and interest.',
+        securityTermPageMessage: 'Thank you for your participation'
       });
     } else {
       setEditingSurvey(null);
@@ -86,7 +94,11 @@ const Surveys: React.FC = () => {
         name: '',
         description: '',
         clientUrl: '',
-        isActive: true
+        isActive: true,
+        completePageMessage: 'Thank you for your participation. The survey has been completed successfully. Your inputs are valuable and will help us improve healthcare insights.',
+        terminatePageMessage: 'Thank you for your participation. Based on your responses, you do not meet the criteria for this study, and the survey has been terminated. We will reach out to you for future survey opportunities.',
+        quotaFullPageMessage: 'Thank you for your participation. The required quota for this survey has already been completed. We appreciate your time and interest.',
+        securityTermPageMessage: 'Thank you for your participation'
       });
     }
     setOpenDialog(true);
@@ -99,12 +111,22 @@ const Surveys: React.FC = () => {
       name: '',
       description: '',
       clientUrl: '',
-      isActive: true
+      isActive: true,
+      completePageMessage: 'Thank you for your participation. The survey has been completed successfully. Your inputs are valuable and will help us improve healthcare insights.',
+      terminatePageMessage: 'Thank you for your participation. Based on your responses, you do not meet the criteria for this study, and the survey has been terminated. We will reach out to you for future survey opportunities.',
+      quotaFullPageMessage: 'Thank you for your participation. The required quota for this survey has already been completed. We appreciate your time and interest.',
+      securityTermPageMessage: 'Thank you for your participation'
     });
   };
 
   const handleSubmit = async () => {
     try {
+      // Validate client survey URL
+      if (!formData.clientUrl.startsWith('http://') && !formData.clientUrl.startsWith('https://')) {
+        alert('Client Survey URL must start with http:// or https://');
+        return;
+      }
+
       if (editingSurvey) {
         await axios.put(`/surveys/${editingSurvey._id}`, formData);
       } else {

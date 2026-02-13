@@ -17,19 +17,27 @@ const vendorSchema = new mongoose.Schema({
     unique: true,
     default: uuidv4
   },
-  completeUrl: {
+  // Base vendor URL - we'll append status parameters to this
+  baseRedirectUrl: {
     type: String,
     required: true,
+    trim: true
+  },
+  // Auto-generated URLs based on baseRedirectUrl
+  completeUrl: {
+    type: String,
     trim: true
   },
   quotaFullUrl: {
     type: String,
-    required: true,
     trim: true
   },
   terminateUrl: {
     type: String,
-    required: true,
+    trim: true
+  },
+  securityTermUrl: {
+    type: String,
     trim: true
   },
   isActive: {
@@ -54,6 +62,21 @@ const vendorSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+// Pre-save hook to auto-generate status URLs
+vendorSchema.pre('save', function(next) {
+  if (this.baseRedirectUrl) {
+    const baseUrl = this.baseRedirectUrl;
+    const separator = baseUrl.includes('?') ? '&' : '?';
+
+    // Generate 4 URLs with status parameters
+    this.completeUrl = `${baseUrl}${separator}status=1&pid={{TOID}}`;
+    this.terminateUrl = `${baseUrl}${separator}status=2&pid={{TOID}}`;
+    this.quotaFullUrl = `${baseUrl}${separator}status=3&pid={{TOID}}`;
+    this.securityTermUrl = `${baseUrl}${separator}status=4&pid={{TOID}}`;
+  }
+  next();
 });
 
 // Generate entry URL

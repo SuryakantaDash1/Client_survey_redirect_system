@@ -93,6 +93,62 @@ exports.handleVendorEntry = async (req, res, next) => {
     // Log analytics
     await logAnalytics('entry', session);
 
+    // Validate survey URL
+    if (!survey.clientUrl.startsWith('http://') && !survey.clientUrl.startsWith('https://')) {
+      return res.status(500).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Configuration Error</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0;
+              padding: 20px;
+            }
+            .container {
+              background: white;
+              padding: 40px;
+              border-radius: 10px;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+              max-width: 600px;
+              text-align: center;
+            }
+            h1 {
+              color: #e74c3c;
+              margin-bottom: 20px;
+            }
+            p {
+              color: #666;
+              line-height: 1.6;
+              margin-bottom: 20px;
+            }
+            code {
+              background: #f5f5f5;
+              padding: 2px 8px;
+              border-radius: 4px;
+              font-family: monospace;
+              color: #e74c3c;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>⚠️ Survey Configuration Error</h1>
+            <p>The survey URL is not properly configured. The client survey URL must start with <code>http://</code> or <code>https://</code></p>
+            <p><strong>Current URL:</strong> <code>${survey.clientUrl}</code></p>
+            <p>Please contact the administrator to fix this configuration issue.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
     // Build redirect URL with parameters
     const redirectParams = {
       ...queryParams,
@@ -165,28 +221,58 @@ exports.handleSurveyReturn = async (req, res, next) => {
       return res.status(404).send('Vendor not found');
     }
 
-    // Determine redirect URL based on status
+    // Find survey to get thank you page messages
+    const survey = await Survey.findById(session.surveyId);
+    if (!survey) {
+      return res.status(404).send('Survey not found');
+    }
+
+    // Determine status and URLs based on status parameter
     let redirectUrl;
+    let thankYouMessage;
+    let pageTitle;
     const normalizedStatus = status.toLowerCase();
 
     switch (normalizedStatus) {
       case 'complete':
+      case '1':
         redirectUrl = vendor.completeUrl;
         session.status = 'complete';
         vendor.completedSessions += 1;
+        survey.completedSessions += 1;
+        thankYouMessage = survey.completePageMessage;
+        pageTitle = 'Complete';
         break;
       case 'quota_full':
       case 'quotafull':
+      case '3':
         redirectUrl = vendor.quotaFullUrl;
         session.status = 'quota_full';
         vendor.quotaFullSessions += 1;
+        survey.quotaFullSessions += 1;
+        thankYouMessage = survey.quotaFullPageMessage;
+        pageTitle = 'Quota Full';
+        break;
+      case 'security':
+      case 'security_term':
+      case '4':
+        redirectUrl = vendor.securityTermUrl || vendor.terminateUrl;
+        session.status = 'terminate';
+        vendor.terminatedSessions += 1;
+        survey.terminatedSessions += 1;
+        thankYouMessage = survey.securityTermPageMessage;
+        pageTitle = 'Security Term';
         break;
       case 'terminate':
       case 'terminated':
+      case '2':
       default:
         redirectUrl = vendor.terminateUrl;
         session.status = 'terminate';
         vendor.terminatedSessions += 1;
+        survey.terminatedSessions += 1;
+        thankYouMessage = survey.terminatePageMessage;
+        pageTitle = 'Terminate';
         break;
     }
 
@@ -198,58 +284,102 @@ exports.handleSurveyReturn = async (req, res, next) => {
     await vendor.save();
 
     // Update survey stats
-    const survey = await Survey.findById(session.surveyId);
-    if (survey) {
-      switch (session.status) {
-        case 'complete':
-          survey.completedSessions += 1;
-          break;
-        case 'quota_full':
-          survey.quotaFullSessions += 1;
-          break;
-        case 'terminate':
-          survey.terminatedSessions += 1;
-          break;
-      }
-      await survey.save();
-    }
+    await survey.save();
 
     // Log analytics
     await logAnalytics('exit', session, session.status);
 
-    
+    // Build final vendor redirect URL with query parameters
     const finalUrl = buildUrlWithParams(redirectUrl, Object.fromEntries(session.queryParams));
-
-    const testDomains = ['vendorplatform.com', 'example.com', 'test.com', 'vendor.com', 'newvendorurl.com', 'vendor3.com', 'vendorNew.com'];
-    try {
-      const urlHost = new URL(redirectUrl).hostname;
-      if (testDomains.some(domain => urlHost.includes(domain))) {
-        console.log('Test mode: Fake vendor URL detected, returning completion info');
-        return res.json({
-          success: true,
-          message: `Session completed with status: ${session.status}`,
-          sessionId: session.sessionId,
-          redirectUrl: finalUrl,
-          session: {
-            id: session._id,
-            sessionId: session.sessionId,
-            vendorName: vendor.name,
-            status: session.status,
-            entryTime: session.entryTime,
-            exitTime: session.exitTime
-          }
-        });
-      }
-    } catch (urlError) {
-      // If URL parsing fails, continue with redirect
-      console.log('URL parsing error, attempting redirect:', urlError);
-    }
 
     // Log response time
     console.log(`Survey return redirect completed in ${Date.now() - startTime}ms`);
 
-    // Redirect to vendor
-    res.redirect(finalUrl);
+    // Return HTML thank you page with auto-redirect to vendor
+    const html = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${pageTitle} - ${survey.name}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+          }
+          .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 600px;
+            text-align: center;
+          }
+          h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 28px;
+          }
+          p {
+            color: #666;
+            line-height: 1.6;
+            font-size: 16px;
+            margin-bottom: 30px;
+          }
+          .redirect-info {
+            color: #999;
+            font-size: 14px;
+            margin-top: 20px;
+          }
+          .vendor-links {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+          }
+          .vendor-links p {
+            font-size: 14px;
+            color: #999;
+            margin-bottom: 10px;
+          }
+          .vendor-links a {
+            color: #667eea;
+            text-decoration: none;
+            word-break: break-all;
+            font-size: 13px;
+          }
+        </style>
+        <script>
+          // Auto-redirect to vendor URL after 3 seconds
+          setTimeout(function() {
+            window.location.href = '${finalUrl}';
+          }, 3000);
+        </script>
+      </head>
+      <body>
+        <div class="container">
+          <h1>${pageTitle} - ${survey.name}</h1>
+          <p>${thankYouMessage}</p>
+          <div class="redirect-info">
+            Redirecting you back in 3 seconds...
+          </div>
+          <div class="vendor-links">
+            <p>Vendor Links:</p>
+            <p><strong>A:</strong> <a href="${vendor.completeUrl}">${vendor.completeUrl}</a></p>
+            <p><strong>B:</strong> <a href="${vendor.terminateUrl}">${vendor.terminateUrl}</a></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
   } catch (error) {
     console.error('Survey return error:', error);
     res.status(500).send('An error occurred');
