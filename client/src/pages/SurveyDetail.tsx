@@ -316,7 +316,19 @@ const SurveyDetail: React.FC = () => {
       {tabValue === 2 && (
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: '#e8f5e9', height: '100%' }}>
+            <Card
+              sx={{
+                backgroundColor: '#e8f5e9',
+                height: '100%',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                }
+              }}
+              onClick={() => navigate(`/surveys/${id}/status/complete`)}
+            >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
                   Complete Page
@@ -327,12 +339,31 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.completePageMessage}
                 </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={{ mt: 2, color: '#2e7d32', borderColor: '#2e7d32' }}
+                >
+                  Preview Page
+                </Button>
               </CardContent>
             </Card>
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: '#ffebee', height: '100%' }}>
+            <Card
+              sx={{
+                backgroundColor: '#ffebee',
+                height: '100%',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                }
+              }}
+              onClick={() => navigate(`/surveys/${id}/status/terminate`)}
+            >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#c62828', fontWeight: 'bold' }}>
                   Terminate Page
@@ -343,12 +374,31 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.terminatePageMessage}
                 </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={{ mt: 2, color: '#c62828', borderColor: '#c62828' }}
+                >
+                  Preview Page
+                </Button>
               </CardContent>
             </Card>
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: '#fff3e0', height: '100%' }}>
+            <Card
+              sx={{
+                backgroundColor: '#fff3e0',
+                height: '100%',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                }
+              }}
+              onClick={() => navigate(`/surveys/${id}/status/quota-full`)}
+            >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#e65100', fontWeight: 'bold' }}>
                   Quota Full Page
@@ -359,12 +409,31 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.quotaFullPageMessage}
                 </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={{ mt: 2, color: '#e65100', borderColor: '#e65100' }}
+                >
+                  Preview Page
+                </Button>
               </CardContent>
             </Card>
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: '#f3e5f5', height: '100%' }}>
+            <Card
+              sx={{
+                backgroundColor: '#f3e5f5',
+                height: '100%',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                }
+              }}
+              onClick={() => navigate(`/surveys/${id}/status/security`)}
+            >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#6a1b9a', fontWeight: 'bold' }}>
                   Security Term Page
@@ -375,6 +444,13 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.securityTermPageMessage}
                 </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={{ mt: 2, color: '#6a1b9a', borderColor: '#6a1b9a' }}
+                >
+                  Preview Page
+                </Button>
               </CardContent>
             </Card>
           </Grid>

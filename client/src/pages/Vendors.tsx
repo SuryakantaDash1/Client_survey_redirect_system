@@ -67,8 +67,6 @@ const Vendors: React.FC = () => {
     isActive: true
   });
 
-  const baseUrl = process.env.REACT_APP_BASE_URL || 'http://localhost:3001';
-
   useEffect(() => {
     fetchVendors();
     fetchSurveyName();
@@ -154,9 +152,16 @@ const Vendors: React.FC = () => {
   };
 
   const handleShowUrl = async (vendor: Vendor) => {
-    const entryUrl = `${baseUrl}/v/${vendor.vendorUuid}`;
-    setSelectedVendorUrl(entryUrl);
-    setOpenUrlDialog(true);
+    try {
+      // Fetch the actual entry URL from backend
+      const response = await axios.get(`/vendors/${vendor._id}/url`);
+      const entryUrl = response.data.data.entryUrl;
+      setSelectedVendorUrl(entryUrl);
+      setOpenUrlDialog(true);
+    } catch (error) {
+      console.error('Failed to fetch vendor URL:', error);
+      showSnackbar('Failed to fetch vendor URL');
+    }
   };
 
   const handleCopyUrl = (url: string) => {

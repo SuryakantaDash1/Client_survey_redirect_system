@@ -14,6 +14,7 @@ import Sessions from './pages/Sessions';
 import CompletedSessions from './pages/CompletedSessions';
 import TerminatedSessions from './pages/TerminatedSessions';
 import QuotaFullSessions from './pages/QuotaFullSessions';
+import StatusPreview from './pages/StatusPreview';
 
 const theme = createTheme({
   palette: {
@@ -39,6 +40,7 @@ function App() {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="surveys" element={<Surveys />} />
               <Route path="surveys/:id" element={<SurveyDetail />} />
+              <Route path="surveys/:id/status/:status" element={<StatusPreview />} />
               <Route path="surveys/:surveyId/vendors" element={<Vendors />} />
               <Route path="sessions" element={<Sessions />} />
               <Route path="sessions/completed" element={<CompletedSessions />} />
