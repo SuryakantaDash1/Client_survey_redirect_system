@@ -37,7 +37,10 @@ import axios from 'axios';
 interface Vendor {
   _id: string;
   name: string;
+  vendorSlug: string;
   vendorUuid: string;
+  entryParameter: string;
+  parameterPlaceholder: string;
   baseRedirectUrl: string;
   completeUrl: string;
   quotaFullUrl: string;
@@ -59,10 +62,13 @@ const Vendors: React.FC = () => {
   const [openUrlDialog, setOpenUrlDialog] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [selectedVendorUrl, setSelectedVendorUrl] = useState('');
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
+    entryParameter: 'user_id',
+    parameterPlaceholder: 'TOID',
     baseRedirectUrl: '',
     isActive: true
   });
@@ -97,6 +103,8 @@ const Vendors: React.FC = () => {
       setEditingVendor(vendor);
       setFormData({
         name: vendor.name,
+        entryParameter: vendor.entryParameter || 'user_id',
+        parameterPlaceholder: vendor.parameterPlaceholder || 'TOID',
         baseRedirectUrl: vendor.baseRedirectUrl,
         isActive: vendor.isActive
       });
@@ -104,6 +112,8 @@ const Vendors: React.FC = () => {
       setEditingVendor(null);
       setFormData({
         name: '',
+        entryParameter: 'user_id',
+        parameterPlaceholder: 'TOID',
         baseRedirectUrl: '',
         isActive: true
       });
@@ -157,6 +167,7 @@ const Vendors: React.FC = () => {
       const response = await axios.get(`/vendors/${vendor._id}/url`);
       const entryUrl = response.data.data.entryUrl;
       setSelectedVendorUrl(entryUrl);
+      setSelectedVendor(vendor);
       setOpenUrlDialog(true);
     } catch (error) {
       console.error('Failed to fetch vendor URL:', error);
@@ -294,21 +305,43 @@ const Vendors: React.FC = () => {
           />
           <TextField
             margin="dense"
+            label="Entry Parameter"
+            fullWidth
+            variant="outlined"
+            placeholder="user_id"
+            helperText="The query parameter name your vendor uses (e.g., user_id, respondent_id, pid)"
+            value={formData.entryParameter}
+            onChange={(e) => setFormData({ ...formData, entryParameter: e.target.value })}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Parameter Placeholder"
+            fullWidth
+            variant="outlined"
+            placeholder="TOID"
+            helperText="The name used in redirect URLs (e.g., TOID, RID, UID)"
+            value={formData.parameterPlaceholder}
+            onChange={(e) => setFormData({ ...formData, parameterPlaceholder: e.target.value })}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
             label="Base Redirect URL"
             fullWidth
             variant="outlined"
             placeholder="https://survey.trendopinion.com/simpleProcess.php"
-            helperText="System will auto-generate 4 URLs: status=1 (Complete), status=2 (Terminate), status=3 (Quota Full), status=4 (Security)"
+            helperText="Vendor's callback URL (system will append status and parameter)"
             value={formData.baseRedirectUrl}
             onChange={(e) => setFormData({ ...formData, baseRedirectUrl: e.target.value })}
             sx={{ mb: 2 }}
           />
           <Alert severity="info" sx={{ mb: 2 }}>
-            The system will automatically create 4 status URLs from your base URL:
-            <br/>• Complete: ?status=1&pid={'{{TOID}}'}
-            <br/>• Terminate: ?status=2&pid={'{{TOID}}'}
-            <br/>• Quota Full: ?status=3&pid={'{{TOID}}'}
-            <br/>• Security: ?status=4&pid={'{{TOID}}'}
+            The system will automatically create 4 status URLs:
+            <br/>• Complete: ?status=1&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
+            <br/>• Terminate: ?status=2&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
+            <br/>• Quota Full: ?status=3&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
+            <br/>• Security: ?status=4&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
           </Alert>
           <FormControlLabel
             control={
@@ -346,7 +379,7 @@ const Vendors: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              mb: 3
+              mb: 2
             }}
           >
             <Typography
@@ -360,6 +393,30 @@ const Vendors: React.FC = () => {
             </IconButton>
           </Box>
 
+          {selectedVendor && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                📌 Share with Vendor:
+              </Typography>
+              <Typography variant="body2" component="div" sx={{ mb: 1 }}>
+                Send this URL with the parameter placeholder:
+              </Typography>
+              <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, mb: 1 }}>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {selectedVendorUrl}?{selectedVendor.entryParameter}={'{'}YOUR_ID{'}'}
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', mt: 1.5, mb: 0.5 }}>
+                Example:
+              </Typography>
+              <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {selectedVendorUrl}?{selectedVendor.entryParameter}={selectedVendor.parameterPlaceholder}123
+                </Typography>
+              </Box>
+            </Alert>
+          )}
+
           <Typography variant="h6" gutterBottom>
             Return URLs (Auto-Generated)
           </Typography>
@@ -367,13 +424,13 @@ const Vendors: React.FC = () => {
             These URLs are where respondents will be redirected based on survey completion status:
           </Typography>
 
-          {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid)) && (
+          {selectedVendor && (
             <>
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" color="success.main">Complete URL (status=1)</Typography>
                 <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.completeUrl}
+                    {selectedVendor.completeUrl}
                   </Typography>
                 </Box>
               </Box>
@@ -382,7 +439,7 @@ const Vendors: React.FC = () => {
                 <Typography variant="subtitle2" color="error.main">Terminate URL (status=2)</Typography>
                 <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.terminateUrl}
+                    {selectedVendor.terminateUrl}
                   </Typography>
                 </Box>
               </Box>
@@ -391,7 +448,7 @@ const Vendors: React.FC = () => {
                 <Typography variant="subtitle2" color="warning.main">Quota Full URL (status=3)</Typography>
                 <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.quotaFullUrl}
+                    {selectedVendor.quotaFullUrl}
                   </Typography>
                 </Box>
               </Box>
@@ -400,7 +457,7 @@ const Vendors: React.FC = () => {
                 <Typography variant="subtitle2" color="info.main">Security Term URL (status=4)</Typography>
                 <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {vendors.find(v => selectedVendorUrl.includes(v.vendorUuid))?.securityTermUrl}
+                    {selectedVendor.securityTermUrl}
                   </Typography>
                 </Box>
               </Box>

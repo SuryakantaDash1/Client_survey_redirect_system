@@ -116,6 +116,28 @@ exports.deleteSurvey = async (req, res, next) => {
   }
 };
 
+// @desc    Get survey status page URLs
+// @route   GET /api/surveys/:id/status-urls
+// @access  Private
+exports.getStatusUrls = async (req, res, next) => {
+  try {
+    const survey = await Survey.findById(req.params.id);
+    if (!survey) {
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    const urls = survey.getStatusPageUrls(baseUrl);
+
+    res.json({
+      success: true,
+      data: urls
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get survey statistics
 // @route   GET /api/surveys/:id/stats
 // @access  Private

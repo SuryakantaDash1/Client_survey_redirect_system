@@ -20,7 +20,8 @@ import {
   Switch,
   FormControlLabel,
   Chip,
-  CircularProgress
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -34,6 +35,7 @@ import axios from 'axios';
 interface Survey {
   _id: string;
   name: string;
+  surveySlug: string;
   description?: string;
   clientUrl: string;
   isActive: boolean;
@@ -41,12 +43,17 @@ interface Survey {
   completedSessions: number;
   createdAt: string;
   vendorCount?: number;
+  completePageMessage?: string;
+  terminatePageMessage?: string;
+  quotaFullPageMessage?: string;
+  securityTermPageMessage?: string;
 }
 
 const Surveys: React.FC = () => {
   const navigate = useNavigate();
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null);
   const [formData, setFormData] = useState({
@@ -83,10 +90,10 @@ const Surveys: React.FC = () => {
         description: survey.description || '',
         clientUrl: survey.clientUrl,
         isActive: survey.isActive,
-        completePageMessage: 'Thank you for your participation. The survey has been completed successfully. Your inputs are valuable and will help us improve healthcare insights.',
-        terminatePageMessage: 'Thank you for your participation. Based on your responses, you do not meet the criteria for this study, and the survey has been terminated. We will reach out to you for future survey opportunities.',
-        quotaFullPageMessage: 'Thank you for your participation. The required quota for this survey has already been completed. We appreciate your time and interest.',
-        securityTermPageMessage: 'Thank you for your participation'
+        completePageMessage: survey.completePageMessage || 'Thank you for your participation. The survey has been completed successfully. Your inputs are valuable and will help us improve healthcare insights.',
+        terminatePageMessage: survey.terminatePageMessage || 'Thank you for your participation. Based on your responses, you do not meet the criteria for this study, and the survey has been terminated. We will reach out to you for future survey opportunities.',
+        quotaFullPageMessage: survey.quotaFullPageMessage || 'Thank you for your participation. The required quota for this survey has already been completed. We appreciate your time and interest.',
+        securityTermPageMessage: survey.securityTermPageMessage || 'Thank you for your participation'
       });
     } else {
       setEditingSurvey(null);
@@ -121,21 +128,36 @@ const Surveys: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
-      // Validate client survey URL
-      if (!formData.clientUrl.startsWith('http://') && !formData.clientUrl.startsWith('https://')) {
+      setSubmitting(true);
+
+      // Validate client survey URL only if provided
+      if (formData.clientUrl && !formData.clientUrl.startsWith('http://') && !formData.clientUrl.startsWith('https://')) {
         alert('Client Survey URL must start with http:// or https://');
+        setSubmitting(false);
         return;
       }
 
+      // For new surveys, clientUrl is optional (can be added later)
+      const dataToSend = editingSurvey
+        ? formData
+        : {
+            ...formData,
+            clientUrl: formData.clientUrl || 'https://placeholder.com/survey' // Temporary placeholder
+          };
+
       if (editingSurvey) {
-        await axios.put(`/surveys/${editingSurvey._id}`, formData);
+        await axios.put(`/surveys/${editingSurvey._id}`, dataToSend);
       } else {
-        await axios.post('/surveys', formData);
+        await axios.post('/surveys', dataToSend);
       }
-      fetchSurveys();
+
       handleCloseDialog();
+      await fetchSurveys();
     } catch (error) {
       console.error('Failed to save survey:', error);
+      alert('Failed to save survey. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -176,8 +198,8 @@ const Surveys: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
+              <TableCell>Survey ID</TableCell>
               <TableCell>Status</TableCell>
-              <TableCell>Client URL</TableCell>
               <TableCell align="center">Vendors</TableCell>
               <TableCell align="center">Sessions</TableCell>
               <TableCell align="center">Completed</TableCell>
@@ -190,13 +212,17 @@ const Surveys: React.FC = () => {
               <TableRow key={survey._id}>
                 <TableCell>{survey.name}</TableCell>
                 <TableCell>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '12px', color: '#666' }}>
+                    {survey.surveySlug || 'Generating...'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
                   <Chip
                     label={survey.isActive ? 'Active' : 'Inactive'}
                     color={survey.isActive ? 'success' : 'default'}
                     size="small"
                   />
                 </TableCell>
-                <TableCell>{survey.clientUrl}</TableCell>
                 <TableCell align="center">{survey.vendorCount || 0}</TableCell>
                 <TableCell align="center">{survey.totalSessions}</TableCell>
                 <TableCell align="center">{survey.completedSessions}</TableCell>
@@ -269,16 +295,34 @@ const Surveys: React.FC = () => {
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <TextField
-            margin="dense"
-            label="Client Survey URL"
-            fullWidth
-            variant="outlined"
-            placeholder="https://client-survey.com/survey"
-            value={formData.clientUrl}
-            onChange={(e) => setFormData({ ...formData, clientUrl: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+
+          {!editingSurvey && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                After creating the survey:
+              </Typography>
+              <Typography variant="body2" component="div">
+                1. System will auto-generate status page URLs
+                <br />2. Share these URLs with the survey owner for review
+                <br />3. Once approved, add the survey owner's URL in the Configuration tab
+              </Typography>
+            </Alert>
+          )}
+
+          {editingSurvey && (
+            <TextField
+              margin="dense"
+              label="Client Survey URL (Optional)"
+              fullWidth
+              variant="outlined"
+              placeholder="https://client-survey.com/survey"
+              helperText="The survey platform URL where respondents will be sent"
+              value={formData.clientUrl}
+              onChange={(e) => setFormData({ ...formData, clientUrl: e.target.value })}
+              sx={{ mb: 2 }}
+            />
+          )}
+
           <FormControlLabel
             control={
               <Switch
@@ -290,9 +334,16 @@ const Surveys: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            {editingSurvey ? 'Update' : 'Create'}
+          <Button onClick={handleCloseDialog} disabled={submitting}>Cancel</Button>
+          <Button onClick={handleSubmit} variant="contained" disabled={submitting}>
+            {submitting ? (
+              <>
+                <CircularProgress size={20} sx={{ mr: 1 }} />
+                {editingSurvey ? 'Updating...' : 'Creating...'}
+              </>
+            ) : (
+              editingSurvey ? 'Update' : 'Create'
+            )}
           </Button>
         </DialogActions>
       </Dialog>

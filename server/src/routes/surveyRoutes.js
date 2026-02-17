@@ -7,7 +7,8 @@ const {
   createSurvey,
   updateSurvey,
   deleteSurvey,
-  getSurveyStats
+  getSurveyStats,
+  getStatusUrls
 } = require('../controllers/surveyController');
 const {
   getVendors,
@@ -27,6 +28,7 @@ router.route('/:id')
   .delete(authorize('admin'), deleteSurvey);
 
 router.get('/:id/stats', getSurveyStats);
+router.get('/:id/status-urls', getStatusUrls);
 
 // Vendor routes under surveys
 router.route('/:surveyId/vendors')

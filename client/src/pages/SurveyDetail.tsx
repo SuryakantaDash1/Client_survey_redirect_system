@@ -10,11 +10,20 @@ import {
   Button,
   CircularProgress,
   Tabs,
-  Tab
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Switch,
+  FormControlLabel,
+  Alert
 } from '@mui/material';
 import {
   ArrowBack,
-  People
+  People,
+  ContentCopy as CopyIcon
 } from '@mui/icons-material';
 import {
   PieChart,
@@ -34,6 +43,7 @@ import axios from 'axios';
 interface SurveyDetails {
   _id: string;
   name: string;
+  surveySlug: string;
   description?: string;
   clientUrl: string;
   isActive: boolean;
@@ -43,6 +53,14 @@ interface SurveyDetails {
   terminatePageMessage: string;
   quotaFullPageMessage: string;
   securityTermPageMessage: string;
+}
+
+interface StatusUrls {
+  complete: string;
+  terminate: string;
+  quotaFull: string;
+  security: string;
+  exitCallback: string;
 }
 
 interface SurveyStats {
@@ -62,8 +80,25 @@ const SurveyDetail: React.FC = () => {
   const [survey, setSurvey] = useState<SurveyDetails | null>(null);
   const [stats, setStats] = useState<SurveyStats | null>(null);
   const [vendors, setVendors] = useState<any[]>([]);
+  const [statusUrls, setStatusUrls] = useState<StatusUrls | null>(null);
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
+  const [previewDialog, setPreviewDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    color: string;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    color: ''
+  });
+  const [editingConfig, setEditingConfig] = useState(false);
+  const [configData, setConfigData] = useState({
+    clientUrl: '',
+    isActive: true
+  });
 
   useEffect(() => {
     fetchSurveyDetails();
@@ -71,18 +106,81 @@ const SurveyDetail: React.FC = () => {
 
   const fetchSurveyDetails = async () => {
     try {
-      const [surveyRes, statsRes, vendorsRes] = await Promise.all([
+      const [surveyRes, statsRes, vendorsRes, urlsRes] = await Promise.all([
         axios.get(`/surveys/${id}`),
         axios.get(`/surveys/${id}/stats`),
-        axios.get(`/surveys/${id}/vendors`)
+        axios.get(`/surveys/${id}/vendors`),
+        axios.get(`/surveys/${id}/status-urls`)
       ]);
-      setSurvey(surveyRes.data.data);
+      const surveyData = surveyRes.data.data;
+      setSurvey(surveyData);
       setStats(statsRes.data.data);
       setVendors(vendorsRes.data.data || []);
+      setStatusUrls(urlsRes.data.data);
+      setConfigData({
+        clientUrl: surveyData.clientUrl,
+        isActive: surveyData.isActive
+      });
     } catch (error) {
       console.error('Failed to fetch survey details:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopyUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    alert('URL copied to clipboard!');
+  };
+
+  const handlePreview = (type: 'complete' | 'terminate' | 'quotaFull' | 'security') => {
+    const previewConfig = {
+      complete: {
+        title: 'Survey Complete',
+        message: survey!.completePageMessage,
+        color: '#2e7d32'
+      },
+      terminate: {
+        title: 'Survey Terminated',
+        message: survey!.terminatePageMessage,
+        color: '#c62828'
+      },
+      quotaFull: {
+        title: 'Quota Full',
+        message: survey!.quotaFullPageMessage,
+        color: '#e65100'
+      },
+      security: {
+        title: 'Security Termination',
+        message: survey!.securityTermPageMessage,
+        color: '#6a1b9a'
+      }
+    };
+
+    setPreviewDialog({
+      open: true,
+      ...previewConfig[type]
+    });
+  };
+
+  const handleClosePreview = () => {
+    setPreviewDialog({
+      open: false,
+      title: '',
+      message: '',
+      color: ''
+    });
+  };
+
+  const handleUpdateConfig = async () => {
+    try {
+      await axios.put(`/surveys/${id}`, configData);
+      await fetchSurveyDetails();
+      setEditingConfig(false);
+      alert('Configuration updated successfully!');
+    } catch (error) {
+      console.error('Failed to update configuration:', error);
+      alert('Failed to update configuration. Please try again.');
     }
   };
 
@@ -148,6 +246,7 @@ const SurveyDetail: React.FC = () => {
       <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
         <Tab label="Overview" />
         <Tab label="Statistics" />
+        <Tab label="Status Page URLs" />
         <Tab label="Thank You Pages" />
         <Tab label="Configuration" />
       </Tabs>
@@ -312,8 +411,221 @@ const SurveyDetail: React.FC = () => {
         </Grid>
       )}
 
+      {/* Status Page URLs Tab */}
+      {tabValue === 2 && statusUrls && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Survey ID
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 'bold', color: '#667eea' }}>
+                  {survey.surveySlug}
+                </Typography>
+                <Button
+                  size="small"
+                  startIcon={<CopyIcon />}
+                  onClick={() => handleCopyUrl(survey.surveySlug)}
+                >
+                  Copy
+                </Button>
+              </Box>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#e8f5e9' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                  Complete Page URL
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 1
+                </Typography>
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1, wordBreak: 'break-all' }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {statusUrls.complete}
+                  </Typography>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleCopyUrl(statusUrls.complete)}
+                    sx={{ color: '#2e7d32', borderColor: '#2e7d32' }}
+                  >
+                    Copy URL
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handlePreview('complete')}
+                    sx={{ color: '#2e7d32', borderColor: '#2e7d32' }}
+                  >
+                    Preview
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#ffebee' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#c62828', fontWeight: 'bold' }}>
+                  Terminate Page URL
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 2
+                </Typography>
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1, wordBreak: 'break-all' }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {statusUrls.terminate}
+                  </Typography>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleCopyUrl(statusUrls.terminate)}
+                    sx={{ color: '#c62828', borderColor: '#c62828' }}
+                  >
+                    Copy URL
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handlePreview('terminate')}
+                    sx={{ color: '#c62828', borderColor: '#c62828' }}
+                  >
+                    Preview
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#fff3e0' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#e65100', fontWeight: 'bold' }}>
+                  Quota Full Page URL
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 3
+                </Typography>
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1, wordBreak: 'break-all' }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {statusUrls.quotaFull}
+                  </Typography>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleCopyUrl(statusUrls.quotaFull)}
+                    sx={{ color: '#e65100', borderColor: '#e65100' }}
+                  >
+                    Copy URL
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handlePreview('quotaFull')}
+                    sx={{ color: '#e65100', borderColor: '#e65100' }}
+                  >
+                    Preview
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ backgroundColor: '#f3e5f5' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#6a1b9a', fontWeight: 'bold' }}>
+                  Security Page URL
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Status Code: 4
+                </Typography>
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1, wordBreak: 'break-all' }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {statusUrls.security}
+                  </Typography>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleCopyUrl(statusUrls.security)}
+                    sx={{ color: '#6a1b9a', borderColor: '#6a1b9a' }}
+                  >
+                    Copy URL
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handlePreview('security')}
+                    sx={{ color: '#6a1b9a', borderColor: '#6a1b9a' }}
+                  >
+                    Preview
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Card sx={{ backgroundColor: '#e3f2fd' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: '#1976d2', fontWeight: 'bold' }}>
+                  Exit Callback URL
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Share this URL with the survey platform
+                </Typography>
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1, wordBreak: 'break-all' }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {statusUrls.exitCallback}?status=&#123;STATUS&#125;
+                  </Typography>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleCopyUrl(statusUrls.exitCallback + '?status={STATUS}')}
+                    sx={{ color: '#1976d2', borderColor: '#1976d2' }}
+                  >
+                    Copy URL
+                  </Button>
+                </Box>
+                <Box sx={{ mt: 2, p: 2, bgcolor: '#fff3cd', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Usage Instructions:
+                  </Typography>
+                  <Typography variant="body2" component="div">
+                    • Complete: status=1 or status=complete
+                    <br />• Terminate: status=2 or status=terminate
+                    <br />• Quota Full: status=3 or status=quotafull
+                    <br />• Security: status=4 or status=security
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
       {/* Thank You Pages Tab */}
-      {tabValue === 2 && (
+      {tabValue === 3 && (
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <Card
@@ -458,43 +770,166 @@ const SurveyDetail: React.FC = () => {
       )}
 
       {/* Configuration Tab */}
-      {tabValue === 3 && (
+      {tabValue === 4 && statusUrls && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Survey Configuration
-              </Typography>
-              <Grid container spacing={2}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6">
+                  Survey Configuration
+                </Typography>
+                {!editingConfig && (
+                  <Button
+                    variant="outlined"
+                    onClick={() => setEditingConfig(true)}
+                  >
+                    Edit Configuration
+                  </Button>
+                )}
+              </Box>
+
+              <Grid container spacing={3}>
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Client Survey URL
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Client Survey URL *
                   </Typography>
-                  <Typography variant="body1" sx={{ mt: 1, fontFamily: 'monospace' }}>
-                    {survey.clientUrl}
-                  </Typography>
+                  {editingConfig ? (
+                    <TextField
+                      fullWidth
+                      value={configData.clientUrl}
+                      onChange={(e) => setConfigData({ ...configData, clientUrl: e.target.value })}
+                      placeholder="https://surveyplatform.com/client-survey/?user_id="
+                      helperText="The survey platform URL where respondents will be sent (must end with parameter like ?user_id=)"
+                    />
+                  ) : (
+                    <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontFamily: 'monospace' }}>
+                      {survey.clientUrl}
+                    </Box>
+                  )}
                 </Grid>
+
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Exit Callback URL (Share this with client)
+                  </Typography>
+                  <Box sx={{ p: 2, bgcolor: '#e3f2fd', borderRadius: 1, mb: 2 }}>
+                    <Typography sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {statusUrls.exitCallback}?status={'{'}STATUS{'}'}
+                    </Typography>
+                  </Box>
+                  <Button
+                    size="small"
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleCopyUrl(statusUrls.exitCallback + '?status={STATUS}')}
+                  >
+                    Copy Exit Callback URL
+                  </Button>
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                      Instructions for Client:
+                    </Typography>
+                    <Typography variant="body2" component="div">
+                      Configure your survey to redirect to this URL when respondents finish:
+                      <br />• Complete: {statusUrls.exitCallback}?status=1
+                      <br />• Terminate: {statusUrls.exitCallback}?status=2
+                      <br />• Quota Full: {statusUrls.exitCallback}?status=3
+                      <br />• Security: {statusUrls.exitCallback}?status=4
+                    </Typography>
+                  </Alert>
+                </Grid>
+
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="textSecondary">
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
                     Status
                   </Typography>
-                  <Typography variant="body1" sx={{ mt: 1 }}>
-                    {survey.isActive ? 'Active' : 'Inactive'}
-                  </Typography>
+                  {editingConfig ? (
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={configData.isActive}
+                          onChange={(e) => setConfigData({ ...configData, isActive: e.target.checked })}
+                        />
+                      }
+                      label={configData.isActive ? 'Active' : 'Inactive'}
+                    />
+                  ) : (
+                    <Typography variant="body1">
+                      {survey.isActive ? 'Active' : 'Inactive'}
+                    </Typography>
+                  )}
                 </Grid>
+
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="textSecondary">
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
                     Created
                   </Typography>
-                  <Typography variant="body1" sx={{ mt: 1 }}>
+                  <Typography variant="body1">
                     {new Date(survey.createdAt).toLocaleString()}
                   </Typography>
                 </Grid>
+
+                {editingConfig && (
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditingConfig(false);
+                          setConfigData({
+                            clientUrl: survey.clientUrl,
+                            isActive: survey.isActive
+                          });
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={handleUpdateConfig}
+                      >
+                        Save Configuration
+                      </Button>
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
             </Paper>
           </Grid>
         </Grid>
       )}
+
+      {/* Preview Dialog */}
+      <Dialog
+        open={previewDialog.open}
+        onClose={handleClosePreview}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: previewDialog.color, color: 'white' }}>
+          {previewDialog.title}
+        </DialogTitle>
+        <DialogContent sx={{ mt: 3 }}>
+          <Box
+            sx={{
+              minHeight: '200px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              p: 4
+            }}
+          >
+            <Typography variant="h6" sx={{ whiteSpace: 'pre-wrap' }}>
+              {previewDialog.message}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePreview} variant="contained">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

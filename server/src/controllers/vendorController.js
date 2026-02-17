@@ -133,7 +133,7 @@ exports.getVendorUrl = async (req, res, next) => {
     }
 
     const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
-    const entryUrl = vendor.getEntryUrl(baseUrl);
+    const entryUrl = await vendor.getEntryUrl(baseUrl);
 
     res.json({
       success: true,

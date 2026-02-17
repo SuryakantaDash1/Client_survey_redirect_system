@@ -1,11 +1,26 @@
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 
+// Helper to generate tracking ID (e.g., TRACK_ABC999)
+const generateTrackingId = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let id = 'TRACK_';
+  for (let i = 0; i < 6; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+};
+
 const sessionSchema = new mongoose.Schema({
   sessionId: {
     type: String,
     unique: true,
     default: uuidv4
+  },
+  trackingId: {
+    type: String,
+    unique: true,
+    default: generateTrackingId
   },
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,

@@ -11,6 +11,7 @@ const authRoutes = require('./routes/authRoutes');
 const surveyRoutes = require('./routes/surveyRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const redirectRoutes = require('./routes/redirectRoutes');
+const publicRoutes = require('./routes/publicRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 
 const app = express();
@@ -44,8 +45,8 @@ const apiLimiter = rateLimit({
   max: process.env.RATE_LIMIT_MAX_REQUESTS || 100,
   message: 'Too many requests from this IP, please try again later.',
   skip: (req) => {
-    // Skip rate limiting for redirect routes
-    return req.path.startsWith('/v/') || req.path.startsWith('/r/');
+    // Skip rate limiting for public redirect routes
+    return req.path.startsWith('/v/') || req.path.startsWith('/r/') || req.path.startsWith('/exit/');
   }
 });
 
@@ -56,7 +57,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/surveys', surveyRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api', vendorRoutes);
-app.use('/', redirectRoutes); // Redirect routes at root level
+app.use('/', publicRoutes); // NEW: Public routes (status pages, entry, exit)
+app.use('/', redirectRoutes); // OLD: Legacy redirect routes (keep for backward compatibility)
 
 // Health check endpoint
 app.get('/health', (req, res) => {

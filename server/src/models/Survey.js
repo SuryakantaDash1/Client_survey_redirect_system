@@ -1,9 +1,23 @@
 const mongoose = require('mongoose');
 
+// Helper function to generate slug from name
+const generateSlug = (name) => {
+  const year = new Date().getFullYear();
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') + '-' + year;
+};
+
 const surveySchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
+    trim: true
+  },
+  surveySlug: {
+    type: String,
+    unique: true,
     trim: true
   },
   description: {
@@ -71,5 +85,39 @@ surveySchema.virtual('vendors', {
   localField: '_id',
   foreignField: 'surveyId'
 });
+
+// Pre-save hook to generate slug
+surveySchema.pre('save', async function(next) {
+  try {
+    if (!this.surveySlug && this.isNew) {
+      let slug = generateSlug(this.name);
+      let counter = 1;
+
+      // Check for uniqueness and add counter if needed
+      while (await this.constructor.findOne({ surveySlug: slug })) {
+        slug = generateSlug(this.name) + '-' + counter;
+        counter++;
+      }
+
+      this.surveySlug = slug;
+      console.log('Generated slug:', slug, 'for survey:', this.name);
+    }
+    next();
+  } catch (error) {
+    console.error('Error in pre-save hook:', error);
+    next(error);
+  }
+});
+
+// Method to get status page URLs
+surveySchema.methods.getStatusPageUrls = function(baseUrl) {
+  return {
+    complete: `${baseUrl}/${this.surveySlug}/complete`,
+    terminate: `${baseUrl}/${this.surveySlug}/terminate`,
+    quotaFull: `${baseUrl}/${this.surveySlug}/quotafull`,
+    security: `${baseUrl}/${this.surveySlug}/security`,
+    exitCallback: `${baseUrl}/exit/${this.surveySlug}`
+  };
+};
 
 module.exports = mongoose.model('Survey', surveySchema);
