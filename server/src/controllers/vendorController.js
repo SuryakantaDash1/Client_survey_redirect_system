@@ -71,21 +71,26 @@ exports.createVendor = async (req, res, next) => {
 // @access  Private
 exports.updateVendor = async (req, res, next) => {
   try {
-    // Don't allow updating vendorUuid
+    // Don't allow updating vendorUuid or vendorSlug
     delete req.body.vendorUuid;
+    delete req.body.vendorSlug;
 
-    const vendor = await Vendor.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true
-      }
-    );
+    // Use find + save to trigger pre-save hook (regenerates URLs)
+    const vendor = await Vendor.findById(req.params.id);
 
     if (!vendor) {
       return res.status(404).json({ error: 'Vendor not found' });
     }
+
+    // Apply updates
+    if (req.body.name !== undefined) vendor.name = req.body.name;
+    if (req.body.entryParameter !== undefined) vendor.entryParameter = req.body.entryParameter;
+    if (req.body.parameterPlaceholder !== undefined) vendor.parameterPlaceholder = req.body.parameterPlaceholder;
+    if (req.body.baseRedirectUrl !== undefined) vendor.baseRedirectUrl = req.body.baseRedirectUrl;
+    if (req.body.isActive !== undefined) vendor.isActive = req.body.isActive;
+
+    // save() triggers pre-save hook which regenerates all 4 URLs
+    await vendor.save();
 
     res.json({
       success: true,

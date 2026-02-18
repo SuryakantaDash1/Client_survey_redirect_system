@@ -66,18 +66,27 @@ exports.createSurvey = async (req, res, next) => {
 // @access  Private
 exports.updateSurvey = async (req, res, next) => {
   try {
-    const survey = await Survey.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true
-      }
-    );
+    // Don't allow updating surveySlug
+    delete req.body.surveySlug;
+
+    // Use find + save to trigger pre-save hook
+    const survey = await Survey.findById(req.params.id);
 
     if (!survey) {
       return res.status(404).json({ error: 'Survey not found' });
     }
+
+    // Apply updates
+    if (req.body.name !== undefined) survey.name = req.body.name;
+    if (req.body.description !== undefined) survey.description = req.body.description;
+    if (req.body.clientUrl !== undefined) survey.clientUrl = req.body.clientUrl;
+    if (req.body.isActive !== undefined) survey.isActive = req.body.isActive;
+    if (req.body.completePageMessage !== undefined) survey.completePageMessage = req.body.completePageMessage;
+    if (req.body.terminatePageMessage !== undefined) survey.terminatePageMessage = req.body.terminatePageMessage;
+    if (req.body.quotaFullPageMessage !== undefined) survey.quotaFullPageMessage = req.body.quotaFullPageMessage;
+    if (req.body.securityTermPageMessage !== undefined) survey.securityTermPageMessage = req.body.securityTermPageMessage;
+
+    await survey.save();
 
     res.json({
       success: true,
