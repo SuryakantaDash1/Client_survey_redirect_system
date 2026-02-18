@@ -264,9 +264,13 @@ exports.handleSurveyExit = async (req, res, next) => {
     await logAnalytics('exit', session, session.status);
 
     // Build final vendor redirect URL by replacing placeholder
-    const userIdValue = session.queryParams.get(vendor.entryParameter) || otherParams[vendor.entryParameter] || '';
+    // session.queryParams is a plain object (from MongoDB), not a Map - use bracket notation
+    const userIdValue = (session.queryParams && session.queryParams[vendor.entryParameter]) || otherParams[vendor.entryParameter] || '';
     const placeholder = `{{${vendor.parameterPlaceholder}}}`;
     const finalUrl = redirectUrl.replace(placeholder, userIdValue);
+
+    console.log('Final redirect URL:', finalUrl);
+    console.log('userIdValue:', userIdValue, 'entryParameter:', vendor.entryParameter, 'queryParams:', session.queryParams);
 
     console.log(`Exit redirect completed in ${Date.now() - startTime}ms`);
 
@@ -320,21 +324,6 @@ exports.handleSurveyExit = async (req, res, next) => {
             margin: 20px 0;
           }
         </style>
-        <script>
-          let seconds = 3;
-          const countdownEl = document.getElementById('countdown');
-
-          const timer = setInterval(function() {
-            seconds--;
-            if (countdownEl) {
-              countdownEl.textContent = seconds;
-            }
-            if (seconds <= 0) {
-              clearInterval(timer);
-              window.location.href = '${finalUrl}';
-            }
-          }, 1000);
-        </script>
       </head>
       <body>
         <div class="container">
@@ -345,6 +334,23 @@ exports.handleSurveyExit = async (req, res, next) => {
             Redirecting you back in <span id="seconds">3</span> seconds...
           </div>
         </div>
+        <div id="redirect-url" data-url="${finalUrl}" style="display:none"></div>
+        <script>
+          var redirectUrl = document.getElementById('redirect-url').getAttribute('data-url');
+          var seconds = 3;
+          var countdownEl = document.getElementById('countdown');
+          var secondsEl = document.getElementById('seconds');
+
+          var timer = setInterval(function() {
+            seconds--;
+            if (countdownEl) countdownEl.textContent = seconds;
+            if (secondsEl) secondsEl.textContent = seconds;
+            if (seconds <= 0) {
+              clearInterval(timer);
+              window.location.href = redirectUrl;
+            }
+          }, 1000);
+        </script>
       </body>
       </html>
     `;
