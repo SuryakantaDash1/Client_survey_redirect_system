@@ -23,7 +23,8 @@ import {
 import {
   ArrowBack,
   People,
-  ContentCopy as CopyIcon
+  ContentCopy as CopyIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
 import {
   PieChart,
@@ -99,6 +100,15 @@ const SurveyDetail: React.FC = () => {
     clientUrl: '',
     isActive: true
   });
+  const [editMessageDialog, setEditMessageDialog] = useState<{
+    open: boolean;
+    type: 'complete' | 'terminate' | 'quotaFull' | 'security';
+    message: string;
+  }>({
+    open: false,
+    type: 'complete',
+    message: ''
+  });
 
   useEffect(() => {
     fetchSurveyDetails();
@@ -170,6 +180,49 @@ const SurveyDetail: React.FC = () => {
       message: '',
       color: ''
     });
+  };
+
+  const handleOpenEditMessage = (type: 'complete' | 'terminate' | 'quotaFull' | 'security') => {
+    const messageMap = {
+      complete: survey!.completePageMessage,
+      terminate: survey!.terminatePageMessage,
+      quotaFull: survey!.quotaFullPageMessage,
+      security: survey!.securityTermPageMessage
+    };
+    setEditMessageDialog({
+      open: true,
+      type,
+      message: messageMap[type]
+    });
+  };
+
+  const handleCloseEditMessage = () => {
+    setEditMessageDialog({
+      open: false,
+      type: 'complete',
+      message: ''
+    });
+  };
+
+  const handleUpdateMessage = async () => {
+    try {
+      const fieldMap = {
+        complete: 'completePageMessage',
+        terminate: 'terminatePageMessage',
+        quotaFull: 'quotaFullPageMessage',
+        security: 'securityTermPageMessage'
+      };
+
+      await axios.put(`/surveys/${id}`, {
+        [fieldMap[editMessageDialog.type]]: editMessageDialog.message
+      });
+
+      await fetchSurveyDetails();
+      handleCloseEditMessage();
+    } catch (error) {
+      console.error('Failed to update message:', error);
+      alert('Failed to update message');
+    }
   };
 
   const handleUpdateConfig = async () => {
@@ -631,15 +684,8 @@ const SurveyDetail: React.FC = () => {
             <Card
               sx={{
                 backgroundColor: '#e8f5e9',
-                height: '100%',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
-                }
+                height: '100%'
               }}
-              onClick={() => navigate(`/surveys/${id}/status/complete`)}
             >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
@@ -648,16 +694,34 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body2" color="textSecondary" gutterBottom>
                   Status Code: 1
                 </Typography>
-                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body1" sx={{ mt: 2, mb: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.completePageMessage}
                 </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  sx={{ mt: 2, color: '#2e7d32', borderColor: '#2e7d32' }}
-                >
-                  Preview Page
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<EditIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditMessage('complete');
+                    }}
+                    sx={{ color: '#2e7d32', borderColor: '#2e7d32' }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePreview('complete');
+                    }}
+                    sx={{ color: '#2e7d32', borderColor: '#2e7d32' }}
+                  >
+                    Preview Page
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -674,7 +738,6 @@ const SurveyDetail: React.FC = () => {
                   boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
                 }
               }}
-              onClick={() => navigate(`/surveys/${id}/status/terminate`)}
             >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#c62828', fontWeight: 'bold' }}>
@@ -683,16 +746,34 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body2" color="textSecondary" gutterBottom>
                   Status Code: 2
                 </Typography>
-                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body1" sx={{ mt: 2, mb: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.terminatePageMessage}
                 </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  sx={{ mt: 2, color: '#c62828', borderColor: '#c62828' }}
-                >
-                  Preview Page
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<EditIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditMessage('terminate');
+                    }}
+                    sx={{ color: '#c62828', borderColor: '#c62828' }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePreview('terminate');
+                    }}
+                    sx={{ color: '#c62828', borderColor: '#c62828' }}
+                  >
+                    Preview Page
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -701,15 +782,8 @@ const SurveyDetail: React.FC = () => {
             <Card
               sx={{
                 backgroundColor: '#fff3e0',
-                height: '100%',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
-                }
+                height: '100%'
               }}
-              onClick={() => navigate(`/surveys/${id}/status/quota-full`)}
             >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#e65100', fontWeight: 'bold' }}>
@@ -718,16 +792,34 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body2" color="textSecondary" gutterBottom>
                   Status Code: 3
                 </Typography>
-                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body1" sx={{ mt: 2, mb: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.quotaFullPageMessage}
                 </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  sx={{ mt: 2, color: '#e65100', borderColor: '#e65100' }}
-                >
-                  Preview Page
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<EditIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditMessage('quotaFull');
+                    }}
+                    sx={{ color: '#e65100', borderColor: '#e65100' }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePreview('quotaFull');
+                    }}
+                    sx={{ color: '#e65100', borderColor: '#e65100' }}
+                  >
+                    Preview Page
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -736,15 +828,8 @@ const SurveyDetail: React.FC = () => {
             <Card
               sx={{
                 backgroundColor: '#f3e5f5',
-                height: '100%',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
-                }
+                height: '100%'
               }}
-              onClick={() => navigate(`/surveys/${id}/status/security`)}
             >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ color: '#6a1b9a', fontWeight: 'bold' }}>
@@ -753,16 +838,34 @@ const SurveyDetail: React.FC = () => {
                 <Typography variant="body2" color="textSecondary" gutterBottom>
                   Status Code: 4
                 </Typography>
-                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body1" sx={{ mt: 2, mb: 2, whiteSpace: 'pre-wrap' }}>
                   {survey.securityTermPageMessage}
                 </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  sx={{ mt: 2, color: '#6a1b9a', borderColor: '#6a1b9a' }}
-                >
-                  Preview Page
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<EditIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditMessage('security');
+                    }}
+                    sx={{ color: '#6a1b9a', borderColor: '#6a1b9a' }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePreview('security');
+                    }}
+                    sx={{ color: '#6a1b9a', borderColor: '#6a1b9a' }}
+                  >
+                    Preview Page
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -927,6 +1030,38 @@ const SurveyDetail: React.FC = () => {
         <DialogActions>
           <Button onClick={handleClosePreview} variant="contained">
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Message Dialog */}
+      <Dialog
+        open={editMessageDialog.open}
+        onClose={handleCloseEditMessage}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Edit {editMessageDialog.type === 'complete' ? 'Complete' :
+                editMessageDialog.type === 'terminate' ? 'Terminate' :
+                editMessageDialog.type === 'quotaFull' ? 'Quota Full' :
+                'Security Term'} Page Message
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            label="Message"
+            multiline
+            rows={6}
+            fullWidth
+            value={editMessageDialog.message}
+            onChange={(e) => setEditMessageDialog({ ...editMessageDialog, message: e.target.value })}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditMessage}>Cancel</Button>
+          <Button onClick={handleUpdateMessage} variant="contained">
+            Update
           </Button>
         </DialogActions>
       </Dialog>
