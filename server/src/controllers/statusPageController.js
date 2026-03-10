@@ -5,7 +5,11 @@ const Survey = require('../models/Survey');
 // @access  Public
 exports.showStatusPage = async (req, res, next) => {
   try {
-    const { surveySlug, status } = req.params;
+    const { surveySlug } = req.params;
+
+    // Extract status from the URL path (e.g., /survey-slug/complete -> "complete")
+    const pathParts = req.path.split('/');
+    const status = pathParts[pathParts.length - 1]; // Get last part of path
 
     // Find survey by slug
     const survey = await Survey.findOne({ surveySlug });
