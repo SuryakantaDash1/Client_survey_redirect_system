@@ -222,6 +222,23 @@ exports.handleSurveyExit = async (req, res, next) => {
       }
     }
 
+    // Final fallback: If still no session found, get the most recent active session for this survey
+    // This handles cases where survey platforms use their own IDs (e.g., A+ Research)
+    if (!session) {
+      console.log('No session found by tracking_id or user_id. Trying most recent active session for survey...');
+      session = await Session.findOne({
+        surveyId: survey._id,
+        status: 'active'
+      }).sort({ entryTime: -1 }); // Get most recent
+
+      if (session) {
+        console.log('Found most recent active session:', {
+          trackingId: session.trackingId,
+          entryTime: session.entryTime
+        });
+      }
+    }
+
     if (!session) {
       console.error('Session not found. tracking_id:', tracking_id, 'otherParams:', otherParams);
       return res.status(404).send('Session not found. Please ensure you accessed this survey via the correct entry URL.');
