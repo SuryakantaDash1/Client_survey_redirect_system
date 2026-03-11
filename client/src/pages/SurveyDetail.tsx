@@ -932,11 +932,13 @@ const SurveyDetail: React.FC = () => {
                       Instructions for Client:
                     </Typography>
                     <Typography variant="body2" component="div">
-                      Configure your survey to redirect to this URL when respondents finish:
-                      <br />• Complete: {statusUrls.exitCallback}?status=1
-                      <br />• Terminate: {statusUrls.exitCallback}?status=2
-                      <br />• Quota Full: {statusUrls.exitCallback}?status=3
-                      <br />• Security: {statusUrls.exitCallback}?status=4
+                      Configure your survey to redirect to these URLs when respondents finish:
+                      <br />• Complete: {statusUrls.exitCallback}?status=1&user_id={'{'}<strong>USER_ID</strong>{'}'}
+                      <br />• Terminate: {statusUrls.exitCallback}?status=2&user_id={'{'}<strong>USER_ID</strong>{'}'}
+                      <br />• Quota Full: {statusUrls.exitCallback}?status=3&user_id={'{'}<strong>USER_ID</strong>{'}'}
+                      <br />• Security: {statusUrls.exitCallback}?status=4&user_id={'{'}<strong>USER_ID</strong>{'}'}
+                      <br /><br />
+                      <strong>Note:</strong> Replace {'{'}USER_ID{'}'} with your survey platform's variable/placeholder for the user_id parameter.
                     </Typography>
                   </Alert>
                 </Grid>
