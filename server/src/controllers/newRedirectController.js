@@ -174,7 +174,7 @@ exports.handleSurveyExit = async (req, res, next) => {
     const { surveySlug } = req.params;
     const { status = '2', tracking_id, ...otherParams } = req.query;
 
-    console.log('Exit request:', { surveySlug, status, tracking_id });
+    console.log('Exit request:', { surveySlug, status, tracking_id, otherParams });
 
     // Find survey by slug
     const survey = await Survey.findOne({ surveySlug });
@@ -182,10 +182,49 @@ exports.handleSurveyExit = async (req, res, next) => {
       return res.status(404).send('Survey not found');
     }
 
-    // Find session by tracking_id
-    const session = await Session.findOne({ trackingId: tracking_id });
+    // Find session by tracking_id OR by user_id (fallback for surveys that don't support tracking_id)
+    let session;
+
+    if (tracking_id) {
+      // Primary method: Find by tracking_id
+      session = await Session.findOne({ trackingId: tracking_id });
+    } else {
+      // Fallback method: Find by user_id parameter
+      // Try to find the most recent active session for this survey with matching user_id
+      const userIdParam = otherParams.user_id || otherParams.respondent_id || otherParams.rid;
+
+      if (userIdParam) {
+        console.log('No tracking_id provided, attempting to find session by user_id:', userIdParam);
+
+        // Find all vendors for this survey to check their entry parameter
+        const vendors = await Vendor.find({ surveyId: survey._id });
+
+        // Find the most recent active session where queryParams contains this user_id
+        for (const vendor of vendors) {
+          const entryParam = vendor.entryParameter;
+          const foundSession = await Session.findOne({
+            surveyId: survey._id,
+            vendorId: vendor._id,
+            status: 'active',
+            [`queryParams.${entryParam}`]: userIdParam
+          }).sort({ entryTime: -1 }); // Get most recent
+
+          if (foundSession) {
+            session = foundSession;
+            console.log('Found session by user_id:', {
+              trackingId: session.trackingId,
+              userIdParam,
+              entryParam
+            });
+            break;
+          }
+        }
+      }
+    }
+
     if (!session) {
-      return res.status(404).send('Session not found');
+      console.error('Session not found. tracking_id:', tracking_id, 'otherParams:', otherParams);
+      return res.status(404).send('Session not found. Please ensure you accessed this survey via the correct entry URL.');
     }
 
     // Check if session already completed
