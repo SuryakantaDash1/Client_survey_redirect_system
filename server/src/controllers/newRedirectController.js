@@ -164,6 +164,81 @@ exports.handleVendorEntry = async (req, res, next) => {
   }
 };
 
+// Helper: resolve thank you message and page title from status code
+const resolveStatusMeta = (normalizedStatus, survey) => {
+  if (normalizedStatus === '1' || normalizedStatus === 'complete') {
+    return { thankYouMessage: survey.completePageMessage, pageTitle: 'Complete' };
+  } else if (normalizedStatus === '3' || normalizedStatus === 'quota_full' || normalizedStatus === 'quotafull') {
+    return { thankYouMessage: survey.quotaFullPageMessage, pageTitle: 'Quota Full' };
+  } else if (normalizedStatus === '4' || normalizedStatus === 'security' || normalizedStatus === 'security_term') {
+    return { thankYouMessage: survey.securityTermPageMessage, pageTitle: 'Security Term' };
+  } else {
+    return { thankYouMessage: survey.terminatePageMessage, pageTitle: 'Terminate' };
+  }
+};
+
+// Helper: build thank you page HTML
+const buildThankYouHtml = (pageTitle, surveyName, thankYouMessage, finalUrl = null) => {
+  const hasRedirect = !!finalUrl;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${pageTitle} - ${surveyName}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 60px 40px;
+      border-radius: 10px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      text-align: center;
+    }
+    h1 { color: #333; margin-bottom: 30px; font-size: 32px; }
+    p { color: #666; line-height: 1.8; font-size: 18px; margin-bottom: 30px; }
+    .redirect-info { color: #999; font-size: 14px; margin-top: 20px; }
+    .countdown { font-size: 48px; color: #667eea; font-weight: bold; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>${pageTitle} - ${surveyName}</h1>
+    <p>${thankYouMessage}</p>
+    ${hasRedirect ? `
+    <div class="countdown" id="countdown">3</div>
+    <div class="redirect-info">Redirecting you back in <span id="seconds">3</span> seconds...</div>
+    ` : ''}
+  </div>
+  ${hasRedirect ? `
+  <div id="redirect-url" data-url="${finalUrl}" style="display:none"></div>
+  <script>
+    var redirectUrl = document.getElementById('redirect-url').getAttribute('data-url');
+    var seconds = 3;
+    var countdownEl = document.getElementById('countdown');
+    var secondsEl = document.getElementById('seconds');
+    var timer = setInterval(function() {
+      seconds--;
+      if (countdownEl) countdownEl.textContent = seconds;
+      if (secondsEl) secondsEl.textContent = seconds;
+      if (seconds <= 0) { clearInterval(timer); window.location.href = redirectUrl; }
+    }, 1000);
+  </script>
+  ` : ''}
+</body>
+</html>`;
+};
+
 // @desc    Handle survey exit callback (NEW STRUCTURE)
 // @route   GET /exit/:surveySlug
 // @access  Public
@@ -172,9 +247,10 @@ exports.handleSurveyExit = async (req, res, next) => {
 
   try {
     const { surveySlug } = req.params;
-    const { status = '2', tracking_id, ...otherParams } = req.query;
+    const { status = '2', tracking_id } = req.query;
+    const normalizedStatus = status.toString().toLowerCase();
 
-    console.log('Exit request:', { surveySlug, status, tracking_id, otherParams });
+    console.log('Exit request:', { surveySlug, status, tracking_id });
 
     // Find survey by slug
     const survey = await Survey.findOne({ surveySlug });
@@ -182,69 +258,24 @@ exports.handleSurveyExit = async (req, res, next) => {
       return res.status(404).send('Survey not found');
     }
 
-    // Find session by tracking_id OR by user_id (fallback for surveys that don't support tracking_id)
-    let session;
-
-    if (tracking_id) {
-      // Primary method: Find by tracking_id
-      session = await Session.findOne({ trackingId: tracking_id });
-    } else {
-      // Fallback method: Find by user_id parameter
-      // Try to find the most recent active session for this survey with matching user_id
-      const userIdParam = otherParams.user_id || otherParams.respondent_id || otherParams.rid;
-
-      if (userIdParam) {
-        console.log('No tracking_id provided, attempting to find session by user_id:', userIdParam);
-
-        // Find all vendors for this survey to check their entry parameter
-        const vendors = await Vendor.find({ surveyId: survey._id });
-
-        // Find the most recent active session where queryParams contains this user_id
-        for (const vendor of vendors) {
-          const entryParam = vendor.entryParameter;
-          const foundSession = await Session.findOne({
-            surveyId: survey._id,
-            vendorId: vendor._id,
-            status: 'active',
-            [`queryParams.${entryParam}`]: userIdParam
-          }).sort({ entryTime: -1 }); // Get most recent
-
-          if (foundSession) {
-            session = foundSession;
-            console.log('Found session by user_id:', {
-              trackingId: session.trackingId,
-              userIdParam,
-              entryParam
-            });
-            break;
-          }
-        }
-      }
+    // ── PREVIEW MODE ──────────────────────────────────────────────────────────
+    // No tracking_id means the client is previewing the page directly.
+    // Show the thank you message with no countdown/redirect.
+    if (!tracking_id) {
+      const { thankYouMessage, pageTitle } = resolveStatusMeta(normalizedStatus, survey);
+      console.log('Preview mode: no tracking_id, showing message for status:', normalizedStatus);
+      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null));
     }
 
-    // Final fallback: If still no session found, get the most recent active session for this survey
-    // This handles cases where survey platforms use their own IDs (e.g., A+ Research)
-    if (!session) {
-      console.log('No session found by tracking_id or user_id. Trying most recent active session for survey...');
-      session = await Session.findOne({
-        surveyId: survey._id,
-        status: 'active'
-      }).sort({ entryTime: -1 }); // Get most recent
-
-      if (session) {
-        console.log('Found most recent active session:', {
-          trackingId: session.trackingId,
-          entryTime: session.entryTime
-        });
-      }
-    }
+    // ── LIVE MODE ─────────────────────────────────────────────────────────────
+    // Find session strictly by tracking_id — no fallbacks
+    const session = await Session.findOne({ trackingId: tracking_id });
 
     if (!session) {
-      console.error('Session not found. tracking_id:', tracking_id, 'otherParams:', otherParams);
+      console.error('Session not found for tracking_id:', tracking_id);
       return res.status(404).send('Session not found. Please ensure you accessed this survey via the correct entry URL.');
     }
 
-    // Check if session already completed
     if (session.status !== 'active') {
       return res.status(400).send('Session already completed');
     }
@@ -255,169 +286,53 @@ exports.handleSurveyExit = async (req, res, next) => {
       return res.status(404).send('Vendor not found');
     }
 
-    // Determine status and URLs using dynamic redirectUrls lookup
-    let redirectUrl, thankYouMessage, pageTitle, statusPageUrl;
-    const normalizedStatus = status.toString().toLowerCase();
+    // Resolve thank you message from status
+    const { thankYouMessage, pageTitle } = resolveStatusMeta(normalizedStatus, survey);
 
-    // Use the vendor's getRedirectUrlByStatus method for dynamic lookup
+    // Match vendor redirect URL by status code
     const matchedRedirect = vendor.getRedirectUrlByStatus(normalizedStatus);
+    const redirectUrl = matchedRedirect ? matchedRedirect.redirectUrl : null;
 
-    if (matchedRedirect && matchedRedirect.redirectUrl) {
-      redirectUrl = matchedRedirect.redirectUrl;
-      const statusName = (matchedRedirect.statusName || '').toLowerCase();
-
-      // Map to internal session status and update counters
-      if (statusName.includes('complete') || normalizedStatus === '1' || normalizedStatus === 'complete') {
-        session.status = 'complete';
-        vendor.completedSessions += 1;
-        survey.completedSessions += 1;
-        thankYouMessage = survey.completePageMessage;
-        pageTitle = matchedRedirect.statusName || 'Complete';
-        statusPageUrl = `/${survey.surveySlug}/complete`;
-      } else if (statusName.includes('quota') || normalizedStatus === '3' || normalizedStatus === 'quota_full' || normalizedStatus === 'quotafull') {
-        session.status = 'quota_full';
-        vendor.quotaFullSessions += 1;
-        survey.quotaFullSessions += 1;
-        thankYouMessage = survey.quotaFullPageMessage;
-        pageTitle = matchedRedirect.statusName || 'Quota Full';
-        statusPageUrl = `/${survey.surveySlug}/quotafull`;
-      } else if (statusName.includes('security') || normalizedStatus === '4' || normalizedStatus === 'security' || normalizedStatus === 'security_term') {
-        session.status = 'terminate';
-        vendor.terminatedSessions += 1;
-        survey.terminatedSessions += 1;
-        thankYouMessage = survey.securityTermPageMessage;
-        pageTitle = matchedRedirect.statusName || 'Security Term';
-        statusPageUrl = `/${survey.surveySlug}/security`;
-      } else {
-        // Default: treat as terminate (covers terminate, and any custom status)
-        session.status = 'terminate';
-        vendor.terminatedSessions += 1;
-        survey.terminatedSessions += 1;
-        thankYouMessage = survey.terminatePageMessage;
-        pageTitle = matchedRedirect.statusName || 'Terminate';
-        statusPageUrl = `/${survey.surveySlug}/terminate`;
-      }
+    // Update session status and counters
+    const statusName = matchedRedirect ? (matchedRedirect.statusName || '').toLowerCase() : '';
+    if (normalizedStatus === '1' || normalizedStatus === 'complete' || statusName.includes('complete')) {
+      session.status = 'complete';
+      vendor.completedSessions += 1;
+      survey.completedSessions += 1;
+    } else if (normalizedStatus === '3' || normalizedStatus === 'quota_full' || normalizedStatus === 'quotafull' || statusName.includes('quota')) {
+      session.status = 'quota_full';
+      vendor.quotaFullSessions += 1;
+      survey.quotaFullSessions += 1;
     } else {
-      // No match found — fallback to first redirectUrl or terminate
-      console.warn('No matching redirect URL found for status:', normalizedStatus);
-      const fallback = (vendor.redirectUrls && vendor.redirectUrls.length > 0)
-        ? vendor.redirectUrls[0]
-        : null;
-      redirectUrl = fallback ? fallback.redirectUrl : (vendor.terminateUrl || '');
       session.status = 'terminate';
       vendor.terminatedSessions += 1;
       survey.terminatedSessions += 1;
-      thankYouMessage = survey.terminatePageMessage;
-      pageTitle = fallback ? fallback.statusName : 'Terminate';
-      statusPageUrl = `/${survey.surveySlug}/terminate`;
     }
 
-    // Update session
     session.exitTime = new Date();
     await session.save();
-
-    // Update vendor stats
     await vendor.save();
-
-    // Update survey stats
     await survey.save();
 
-    // Log analytics
     await logAnalytics('exit', session, session.status);
 
-    // Build final vendor redirect URL by replacing placeholder
-    // session.queryParams is a plain object (from MongoDB), not a Map - use bracket notation
-    const userIdValue = (session.queryParams && session.queryParams[vendor.entryParameter]) || otherParams[vendor.entryParameter] || '';
+    console.log(`Exit redirect completed in ${Date.now() - startTime}ms`);
+
+    if (!redirectUrl) {
+      // Vendor has no matching redirect URL — show message without redirect
+      console.warn('No matching redirect URL for status:', normalizedStatus, 'vendor:', vendor.name);
+      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null));
+    }
+
+    // Replace placeholder with actual respondent ID
+    const userIdValue = (session.queryParams && session.queryParams[vendor.entryParameter]) || '';
     const placeholder = `{{${vendor.parameterPlaceholder}}}`;
     const finalUrl = redirectUrl.replace(placeholder, userIdValue);
 
     console.log('Final redirect URL:', finalUrl);
-    console.log('userIdValue:', userIdValue, 'entryParameter:', vendor.entryParameter, 'queryParams:', session.queryParams);
 
-    console.log(`Exit redirect completed in ${Date.now() - startTime}ms`);
+    return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, finalUrl));
 
-    // Return HTML thank you page with auto-redirect
-    const html = `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${pageTitle} - ${survey.name}</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0;
-            padding: 20px;
-          }
-          .container {
-            background: white;
-            padding: 60px 40px;
-            border-radius: 10px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 600px;
-            text-align: center;
-          }
-          h1 {
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 32px;
-          }
-          p {
-            color: #666;
-            line-height: 1.8;
-            font-size: 18px;
-            margin-bottom: 30px;
-          }
-          .redirect-info {
-            color: #999;
-            font-size: 14px;
-            margin-top: 20px;
-          }
-          .countdown {
-            font-size: 48px;
-            color: #667eea;
-            font-weight: bold;
-            margin: 20px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>${pageTitle} - ${survey.name}</h1>
-          <p>${thankYouMessage}</p>
-          <div class="countdown" id="countdown">3</div>
-          <div class="redirect-info">
-            Redirecting you back in <span id="seconds">3</span> seconds...
-          </div>
-        </div>
-        <div id="redirect-url" data-url="${finalUrl}" style="display:none"></div>
-        <script>
-          var redirectUrl = document.getElementById('redirect-url').getAttribute('data-url');
-          var seconds = 3;
-          var countdownEl = document.getElementById('countdown');
-          var secondsEl = document.getElementById('seconds');
-
-          var timer = setInterval(function() {
-            seconds--;
-            if (countdownEl) countdownEl.textContent = seconds;
-            if (secondsEl) secondsEl.textContent = seconds;
-            if (seconds <= 0) {
-              clearInterval(timer);
-              window.location.href = redirectUrl;
-            }
-          }, 1000);
-        </script>
-      </body>
-      </html>
-    `;
-
-    res.send(html);
   } catch (error) {
     console.error('Survey exit error:', error);
     res.status(500).send('An error occurred');
