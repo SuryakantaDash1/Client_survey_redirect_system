@@ -75,7 +75,7 @@ exports.updateVendor = async (req, res, next) => {
     delete req.body.vendorUuid;
     delete req.body.vendorSlug;
 
-    // Use find + save to trigger pre-save hook (regenerates URLs)
+    // Use find + save to trigger pre-save hook
     const vendor = await Vendor.findById(req.params.id);
 
     if (!vendor) {
@@ -88,8 +88,8 @@ exports.updateVendor = async (req, res, next) => {
     if (req.body.parameterPlaceholder !== undefined) vendor.parameterPlaceholder = req.body.parameterPlaceholder;
     if (req.body.baseRedirectUrl !== undefined) vendor.baseRedirectUrl = req.body.baseRedirectUrl;
     if (req.body.isActive !== undefined) vendor.isActive = req.body.isActive;
+    if (req.body.redirectUrls !== undefined) vendor.redirectUrls = req.body.redirectUrls;
 
-    // save() triggers pre-save hook which regenerates all 4 URLs
     await vendor.save();
 
     res.json({

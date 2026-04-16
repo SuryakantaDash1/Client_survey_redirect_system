@@ -22,7 +22,10 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  Snackbar
+  Snackbar,
+  Card,
+  CardContent,
+  Divider
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -30,9 +33,16 @@ import {
   Delete as DeleteIcon,
   ContentCopy as CopyIcon,
   ArrowBack,
-  Link as LinkIcon
+  Link as LinkIcon,
+  RemoveCircleOutline as RemoveIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+
+interface RedirectUrlEntry {
+  statusName: string;
+  statusCodes: string[];
+  redirectUrl: string;
+}
 
 interface Vendor {
   _id: string;
@@ -41,16 +51,40 @@ interface Vendor {
   vendorUuid: string;
   entryParameter: string;
   parameterPlaceholder: string;
-  baseRedirectUrl: string;
-  completeUrl: string;
-  quotaFullUrl: string;
-  terminateUrl: string;
-  securityTermUrl: string;
+  redirectUrls: RedirectUrlEntry[];
+  // Legacy fields
+  baseRedirectUrl?: string;
+  completeUrl?: string;
+  quotaFullUrl?: string;
+  terminateUrl?: string;
+  securityTermUrl?: string;
   isActive: boolean;
   totalSessions: number;
   completedSessions: number;
   createdAt: string;
 }
+
+const DEFAULT_REDIRECT_URLS: RedirectUrlEntry[] = [
+  { statusName: 'Complete', statusCodes: ['1'], redirectUrl: '' },
+  { statusName: 'Terminate', statusCodes: ['2'], redirectUrl: '' },
+  { statusName: 'Quota Full', statusCodes: ['3'], redirectUrl: '' },
+  { statusName: 'Security', statusCodes: ['4'], redirectUrl: '' },
+];
+
+const STATUS_COLORS: Record<string, string> = {
+  'complete': '#2e7d32',
+  'terminate': '#d32f2f',
+  'quota full': '#ed6c02',
+  'security': '#0288d1',
+};
+
+const getStatusColor = (name: string): string => {
+  const lower = name.toLowerCase();
+  for (const [key, color] of Object.entries(STATUS_COLORS)) {
+    if (lower.includes(key)) return color;
+  }
+  return '#666';
+};
 
 const Vendors: React.FC = () => {
   const { surveyId } = useParams<{ surveyId: string }>();
@@ -69,9 +103,11 @@ const Vendors: React.FC = () => {
     name: '',
     entryParameter: 'user_id',
     parameterPlaceholder: 'TOID',
-    baseRedirectUrl: '',
     isActive: true
   });
+  const [redirectUrls, setRedirectUrls] = useState<RedirectUrlEntry[]>(
+    DEFAULT_REDIRECT_URLS.map(d => ({ ...d }))
+  );
 
   useEffect(() => {
     fetchVendors();
@@ -105,18 +141,33 @@ const Vendors: React.FC = () => {
         name: vendor.name,
         entryParameter: vendor.entryParameter || 'user_id',
         parameterPlaceholder: vendor.parameterPlaceholder || 'TOID',
-        baseRedirectUrl: vendor.baseRedirectUrl,
         isActive: vendor.isActive
       });
+      // Load existing redirectUrls or build from legacy fields
+      if (vendor.redirectUrls && vendor.redirectUrls.length > 0) {
+        setRedirectUrls(vendor.redirectUrls.map(r => ({
+          statusName: r.statusName,
+          statusCodes: [...r.statusCodes],
+          redirectUrl: r.redirectUrl
+        })));
+      } else {
+        // Backward compatibility: build from legacy fields
+        setRedirectUrls([
+          { statusName: 'Complete', statusCodes: ['1'], redirectUrl: vendor.completeUrl || '' },
+          { statusName: 'Terminate', statusCodes: ['2'], redirectUrl: vendor.terminateUrl || '' },
+          { statusName: 'Quota Full', statusCodes: ['3'], redirectUrl: vendor.quotaFullUrl || '' },
+          { statusName: 'Security', statusCodes: ['4'], redirectUrl: vendor.securityTermUrl || '' },
+        ]);
+      }
     } else {
       setEditingVendor(null);
       setFormData({
         name: '',
         entryParameter: 'user_id',
         parameterPlaceholder: 'TOID',
-        baseRedirectUrl: '',
         isActive: true
       });
+      setRedirectUrls(DEFAULT_REDIRECT_URLS.map(d => ({ ...d, statusCodes: [...d.statusCodes] })));
     }
     setOpenDialog(true);
   };
@@ -126,18 +177,67 @@ const Vendors: React.FC = () => {
     setEditingVendor(null);
   };
 
+  // Redirect URL card handlers
+  const handleAddRedirectUrl = () => {
+    setRedirectUrls([...redirectUrls, { statusName: '', statusCodes: [''], redirectUrl: '' }]);
+  };
+
+  const handleRemoveRedirectUrl = (index: number) => {
+    setRedirectUrls(redirectUrls.filter((_, i) => i !== index));
+  };
+
+  const handleRedirectUrlChange = (index: number, field: keyof RedirectUrlEntry, value: string | string[]) => {
+    const updated = [...redirectUrls];
+    if (field === 'statusCodes') {
+      updated[index].statusCodes = value as string[];
+    } else {
+      updated[index][field] = value as string;
+    }
+    setRedirectUrls(updated);
+  };
+
   const handleSubmit = async () => {
     try {
-      // Validate base redirect URL
-      if (!formData.baseRedirectUrl.startsWith('http://') && !formData.baseRedirectUrl.startsWith('https://')) {
-        showSnackbar('Base Redirect URL must start with http:// or https://');
+      // Validate: at least one redirect URL must be provided
+      const validRedirects = redirectUrls.filter(r => r.statusName.trim() && r.redirectUrl.trim());
+      if (validRedirects.length === 0) {
+        showSnackbar('Please add at least one status redirect URL');
         return;
       }
 
+      // Validate redirect URLs start with http
+      for (const r of validRedirects) {
+        if (!r.redirectUrl.startsWith('http://') && !r.redirectUrl.startsWith('https://')) {
+          showSnackbar(`Redirect URL for "${r.statusName}" must start with http:// or https://`);
+          return;
+        }
+      }
+
+      // Validate each entry has at least one status code
+      for (const r of validRedirects) {
+        const codes = r.statusCodes.filter(c => c.trim());
+        if (codes.length === 0) {
+          showSnackbar(`Please add at least one status code for "${r.statusName}"`);
+          return;
+        }
+      }
+
+      // Clean up status codes (remove empty entries, trim whitespace)
+      const cleanedRedirects = validRedirects.map(r => ({
+        statusName: r.statusName.trim(),
+        statusCodes: r.statusCodes.map(c => c.trim()).filter(c => c),
+        redirectUrl: r.redirectUrl.trim()
+      }));
+
+      const payload = {
+        ...formData,
+        redirectUrls: cleanedRedirects
+      };
+
       if (editingVendor) {
-        await axios.put(`/vendors/${editingVendor._id}`, formData);
+        await axios.put(`/vendors/${editingVendor._id}`, payload);
       } else {
-        await axios.post(`/surveys/${surveyId}/vendors`, formData);
+        await axios.post(`/surveys/${surveyId}/vendors`, payload);
       }
       fetchVendors();
       handleCloseDialog();
@@ -163,7 +263,6 @@ const Vendors: React.FC = () => {
 
   const handleShowUrl = async (vendor: Vendor) => {
     try {
-      // Fetch the actual entry URL from backend
       const response = await axios.get(`/vendors/${vendor._id}/url`);
       const entryUrl = response.data.data.entryUrl;
       setSelectedVendorUrl(entryUrl);
@@ -183,6 +282,20 @@ const Vendors: React.FC = () => {
   const showSnackbar = (message: string) => {
     setSnackbarMessage(message);
     setSnackbarOpen(true);
+  };
+
+  // Get redirect URLs to display (from new array or legacy fields)
+  const getVendorRedirectUrls = (vendor: Vendor): RedirectUrlEntry[] => {
+    if (vendor.redirectUrls && vendor.redirectUrls.length > 0) {
+      return vendor.redirectUrls;
+    }
+    // Fallback to legacy fields
+    const legacy: RedirectUrlEntry[] = [];
+    if (vendor.completeUrl) legacy.push({ statusName: 'Complete', statusCodes: ['1'], redirectUrl: vendor.completeUrl });
+    if (vendor.terminateUrl) legacy.push({ statusName: 'Terminate', statusCodes: ['2'], redirectUrl: vendor.terminateUrl });
+    if (vendor.quotaFullUrl) legacy.push({ statusName: 'Quota Full', statusCodes: ['3'], redirectUrl: vendor.quotaFullUrl });
+    if (vendor.securityTermUrl) legacy.push({ statusName: 'Security', statusCodes: ['4'], redirectUrl: vendor.securityTermUrl });
+    return legacy;
   };
 
   if (loading) {
@@ -290,7 +403,7 @@ const Vendors: React.FC = () => {
       </TableContainer>
 
       {/* Add/Edit Vendor Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle>
         <DialogContent>
           <TextField
@@ -303,46 +416,117 @@ const Vendors: React.FC = () => {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <TextField
-            margin="dense"
-            label="Entry Parameter"
-            fullWidth
-            variant="outlined"
-            placeholder="user_id"
-            helperText="The query parameter name your vendor uses (e.g., user_id, respondent_id, pid)"
-            value={formData.entryParameter}
-            onChange={(e) => setFormData({ ...formData, entryParameter: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Parameter Placeholder"
-            fullWidth
-            variant="outlined"
-            placeholder="TOID"
-            helperText="The name used in redirect URLs (e.g., TOID, RID, UID)"
-            value={formData.parameterPlaceholder}
-            onChange={(e) => setFormData({ ...formData, parameterPlaceholder: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Base Redirect URL"
-            fullWidth
-            variant="outlined"
-            placeholder="https://survey.trendopinion.com/simpleProcess.php"
-            helperText="Vendor's callback URL (system will append status and parameter)"
-            value={formData.baseRedirectUrl}
-            onChange={(e) => setFormData({ ...formData, baseRedirectUrl: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+          <Box display="flex" gap={2} sx={{ mb: 2 }}>
+            <TextField
+              margin="dense"
+              label="Entry Parameter"
+              variant="outlined"
+              placeholder="user_id"
+              helperText="Query parameter name (e.g., user_id, respondent_id, pid)"
+              value={formData.entryParameter}
+              onChange={(e) => setFormData({ ...formData, entryParameter: e.target.value })}
+              sx={{ flex: 1 }}
+            />
+            <TextField
+              margin="dense"
+              label="Parameter Placeholder"
+              variant="outlined"
+              placeholder="TOID"
+              helperText="Placeholder in URLs (e.g., TOID, RID, UID)"
+              value={formData.parameterPlaceholder}
+              onChange={(e) => setFormData({ ...formData, parameterPlaceholder: e.target.value })}
+              sx={{ flex: 1 }}
+            />
+          </Box>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* Redirect URLs Section */}
+          <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="h6">
+              Status Redirect URLs
+            </Typography>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={handleAddRedirectUrl}
+              variant="outlined"
+            >
+              Add Status
+            </Button>
+          </Box>
+
           <Alert severity="info" sx={{ mb: 2 }}>
-            The system will automatically create 4 status URLs:
-            <br/>• Complete: ?status=1&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
-            <br/>• Terminate: ?status=2&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
-            <br/>• Quota Full: ?status=3&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
-            <br/>• Security: ?status=4&{formData.entryParameter}={'{{' + formData.parameterPlaceholder + '}}'}
+            Add the redirect URLs provided by the vendor for each status. You can add as many statuses as needed.
+            Status codes can be numbers (1, 2, 3) or letters (A, B, C) — enter all codes that should map to each URL, separated by commas.
           </Alert>
+
+          {redirectUrls.map((entry, index) => (
+            <Card key={index} variant="outlined" sx={{ mb: 2, position: 'relative' }}>
+              <CardContent sx={{ pb: '16px !important' }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ color: getStatusColor(entry.statusName), fontWeight: 600 }}
+                  >
+                    Status #{index + 1}
+                  </Typography>
+                  {redirectUrls.length > 1 && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemoveRedirectUrl(index)}
+                      color="error"
+                      title="Remove this status"
+                    >
+                      <RemoveIcon />
+                    </IconButton>
+                  )}
+                </Box>
+                <Box display="flex" gap={2} sx={{ mb: 1.5 }}>
+                  <TextField
+                    size="small"
+                    label="Status Name"
+                    variant="outlined"
+                    placeholder="e.g., Complete, Terminate"
+                    value={entry.statusName}
+                    onChange={(e) => handleRedirectUrlChange(index, 'statusName', e.target.value)}
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Status Codes (comma-separated)"
+                    variant="outlined"
+                    placeholder="e.g., 1, complete, A"
+                    helperText="All codes that trigger this redirect"
+                    value={entry.statusCodes.join(', ')}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      // While typing: keep raw string in a single-element array so the cursor doesn't jump
+                      // Split only on commas, trim whitespace, filter empty entries from trailing commas
+                      const codes = raw.split(',').map(s => s.trim()).filter((s, i, arr) =>
+                        s !== '' || i < arr.length - 1 // allow empty last slot while typing
+                      );
+                      handleRedirectUrlChange(index, 'statusCodes', codes.length ? codes : ['']);
+                    }}
+                    sx={{ flex: 1 }}
+                  />
+                </Box>
+                <TextField
+                  size="small"
+                  label="Redirect URL"
+                  variant="outlined"
+                  fullWidth
+                  placeholder={`e.g., https://vendor.com/callback?status=1&${formData.entryParameter}={{${formData.parameterPlaceholder}}}`}
+                  helperText={`Use {{${formData.parameterPlaceholder}}} as placeholder for the respondent ID`}
+                  value={entry.redirectUrl}
+                  onChange={(e) => handleRedirectUrlChange(index, 'redirectUrl', e.target.value)}
+                />
+              </CardContent>
+            </Card>
+          ))}
+
+          <Divider sx={{ my: 2 }} />
+
           <FormControlLabel
             control={
               <Switch
@@ -361,7 +545,7 @@ const Vendors: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* URL Display Dialog - Shows Entry URL and All 4 Generated URLs */}
+      {/* URL Display Dialog */}
       <Dialog open={openUrlDialog} onClose={() => setOpenUrlDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>Vendor URLs</DialogTitle>
         <DialogContent>
@@ -396,7 +580,7 @@ const Vendors: React.FC = () => {
           {selectedVendor && (
             <Alert severity="success" sx={{ mb: 3 }}>
               <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                📌 Share with Vendor:
+                Share with Vendor:
               </Typography>
               <Typography variant="body2" component="div" sx={{ mb: 1 }}>
                 Send this URL with the parameter placeholder:
@@ -418,54 +602,49 @@ const Vendors: React.FC = () => {
           )}
 
           <Typography variant="h6" gutterBottom>
-            Return URLs (Auto-Generated)
+            Return URLs (Vendor-Provided)
           </Typography>
           <Typography variant="body2" color="textSecondary" gutterBottom sx={{ mb: 2 }}>
             These URLs are where respondents will be redirected based on survey completion status:
           </Typography>
 
-          {selectedVendor && (
-            <>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" color="success.main">Complete URL (status=1)</Typography>
-                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {selectedVendor.completeUrl}
-                  </Typography>
-                </Box>
+          {selectedVendor && getVendorRedirectUrls(selectedVendor).map((r, index) => (
+            <Box key={index} sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center" gap={1}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ color: getStatusColor(r.statusName) }}
+                >
+                  {r.statusName}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  (codes: {r.statusCodes.join(', ')})
+                </Typography>
               </Box>
-
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" color="error.main">Terminate URL (status=2)</Typography>
-                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {selectedVendor.terminateUrl}
-                  </Typography>
-                </Box>
+              <Box
+                sx={{
+                  p: 1.5,
+                  bgcolor: 'grey.50',
+                  borderRadius: 1,
+                  mt: 0.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>
+                  {r.redirectUrl}
+                </Typography>
+                <IconButton size="small" onClick={() => handleCopyUrl(r.redirectUrl)} sx={{ ml: 1 }}>
+                  <CopyIcon fontSize="small" />
+                </IconButton>
               </Box>
-
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" color="warning.main">Quota Full URL (status=3)</Typography>
-                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {selectedVendor.quotaFullUrl}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" color="info.main">Security Term URL (status=4)</Typography>
-                <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mt: 0.5 }}>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {selectedVendor.securityTermUrl}
-                  </Typography>
-                </Box>
-              </Box>
-            </>
-          )}
+            </Box>
+          ))}
 
           <Alert severity="info" sx={{ mt: 2 }}>
-            Query parameters from the entry URL will be automatically appended to these return URLs.
+            Query parameters from the entry URL will be automatically passed through. The placeholder
+            {selectedVendor ? ` {{${selectedVendor.parameterPlaceholder}}}` : ''} in each URL will be replaced with the actual respondent ID.
           </Alert>
         </DialogContent>
         <DialogActions>

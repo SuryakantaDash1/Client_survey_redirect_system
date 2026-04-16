@@ -255,55 +255,61 @@ exports.handleSurveyExit = async (req, res, next) => {
       return res.status(404).send('Vendor not found');
     }
 
-    // Determine status and URLs
+    // Determine status and URLs using dynamic redirectUrls lookup
     let redirectUrl, thankYouMessage, pageTitle, statusPageUrl;
     const normalizedStatus = status.toString().toLowerCase();
 
-    switch (normalizedStatus) {
-      case 'complete':
-      case '1':
-        redirectUrl = vendor.completeUrl;
+    // Use the vendor's getRedirectUrlByStatus method for dynamic lookup
+    const matchedRedirect = vendor.getRedirectUrlByStatus(normalizedStatus);
+
+    if (matchedRedirect && matchedRedirect.redirectUrl) {
+      redirectUrl = matchedRedirect.redirectUrl;
+      const statusName = (matchedRedirect.statusName || '').toLowerCase();
+
+      // Map to internal session status and update counters
+      if (statusName.includes('complete') || normalizedStatus === '1' || normalizedStatus === 'complete') {
         session.status = 'complete';
         vendor.completedSessions += 1;
         survey.completedSessions += 1;
         thankYouMessage = survey.completePageMessage;
-        pageTitle = 'Complete';
+        pageTitle = matchedRedirect.statusName || 'Complete';
         statusPageUrl = `/${survey.surveySlug}/complete`;
-        break;
-      case 'quota_full':
-      case 'quotafull':
-      case '3':
-        redirectUrl = vendor.quotaFullUrl;
+      } else if (statusName.includes('quota') || normalizedStatus === '3' || normalizedStatus === 'quota_full' || normalizedStatus === 'quotafull') {
         session.status = 'quota_full';
         vendor.quotaFullSessions += 1;
         survey.quotaFullSessions += 1;
         thankYouMessage = survey.quotaFullPageMessage;
-        pageTitle = 'Quota Full';
+        pageTitle = matchedRedirect.statusName || 'Quota Full';
         statusPageUrl = `/${survey.surveySlug}/quotafull`;
-        break;
-      case 'security':
-      case 'security_term':
-      case '4':
-        redirectUrl = vendor.securityTermUrl || vendor.terminateUrl;
+      } else if (statusName.includes('security') || normalizedStatus === '4' || normalizedStatus === 'security' || normalizedStatus === 'security_term') {
         session.status = 'terminate';
         vendor.terminatedSessions += 1;
         survey.terminatedSessions += 1;
         thankYouMessage = survey.securityTermPageMessage;
-        pageTitle = 'Security Term';
+        pageTitle = matchedRedirect.statusName || 'Security Term';
         statusPageUrl = `/${survey.surveySlug}/security`;
-        break;
-      case 'terminate':
-      case 'terminated':
-      case '2':
-      default:
-        redirectUrl = vendor.terminateUrl;
+      } else {
+        // Default: treat as terminate (covers terminate, and any custom status)
         session.status = 'terminate';
         vendor.terminatedSessions += 1;
         survey.terminatedSessions += 1;
         thankYouMessage = survey.terminatePageMessage;
-        pageTitle = 'Terminate';
+        pageTitle = matchedRedirect.statusName || 'Terminate';
         statusPageUrl = `/${survey.surveySlug}/terminate`;
-        break;
+      }
+    } else {
+      // No match found — fallback to first redirectUrl or terminate
+      console.warn('No matching redirect URL found for status:', normalizedStatus);
+      const fallback = (vendor.redirectUrls && vendor.redirectUrls.length > 0)
+        ? vendor.redirectUrls[0]
+        : null;
+      redirectUrl = fallback ? fallback.redirectUrl : (vendor.terminateUrl || '');
+      session.status = 'terminate';
+      vendor.terminatedSessions += 1;
+      survey.terminatedSessions += 1;
+      thankYouMessage = survey.terminatePageMessage;
+      pageTitle = fallback ? fallback.statusName : 'Terminate';
+      statusPageUrl = `/${survey.surveySlug}/terminate`;
     }
 
     // Update session

@@ -901,8 +901,8 @@ const SurveyDetail: React.FC = () => {
                       fullWidth
                       value={configData.clientUrl}
                       onChange={(e) => setConfigData({ ...configData, clientUrl: e.target.value })}
-                      placeholder="https://surveyplatform.com/client-survey/?user_id="
-                      helperText="The survey platform URL where respondents will be sent (must end with parameter like ?user_id=)"
+                      placeholder="https://surveyplatform.com/client-survey/"
+                      helperText="The survey platform URL where respondents will be sent"
                     />
                   ) : (
                     <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontFamily: 'monospace' }}>
@@ -927,18 +927,18 @@ const SurveyDetail: React.FC = () => {
                   >
                     Copy Exit Callback URL
                   </Button>
-                  <Alert severity="warning" sx={{ mt: 2 }}>
+                  <Alert severity="info" sx={{ mt: 2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
                       Instructions for Client:
                     </Typography>
                     <Typography variant="body2" component="div">
                       Configure your survey to redirect to these URLs when respondents finish:
-                      <br />• Complete: {statusUrls.exitCallback}?status=1&user_id={'{'}<strong>USER_ID</strong>{'}'}
-                      <br />• Terminate: {statusUrls.exitCallback}?status=2&user_id={'{'}<strong>USER_ID</strong>{'}'}
-                      <br />• Quota Full: {statusUrls.exitCallback}?status=3&user_id={'{'}<strong>USER_ID</strong>{'}'}
-                      <br />• Security: {statusUrls.exitCallback}?status=4&user_id={'{'}<strong>USER_ID</strong>{'}'}
+                      <br />• Complete: {statusUrls.exitCallback}?status=1
+                      <br />• Terminate: {statusUrls.exitCallback}?status=2
+                      <br />• Quota Full: {statusUrls.exitCallback}?status=3
+                      <br />• Security: {statusUrls.exitCallback}?status=4
                       <br /><br />
-                      <strong>Note:</strong> Replace {'{'}USER_ID{'}'} with your survey platform's variable/placeholder for the user_id parameter.
+                      <strong>Note:</strong> The system automatically appends <strong>tracking_id</strong> to the survey URL when the respondent enters. The exit URLs above will receive it back automatically via the return flow.
                     </Typography>
                   </Alert>
                 </Grid>

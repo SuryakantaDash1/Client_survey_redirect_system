@@ -227,53 +227,56 @@ exports.handleSurveyReturn = async (req, res, next) => {
       return res.status(404).send('Survey not found');
     }
 
-    // Determine status and URLs based on status parameter
+    // Determine status and URLs using dynamic redirectUrls lookup
     let redirectUrl;
     let thankYouMessage;
     let pageTitle;
     const normalizedStatus = status.toLowerCase();
 
-    switch (normalizedStatus) {
-      case 'complete':
-      case '1':
-        redirectUrl = vendor.completeUrl;
+    // Use the vendor's getRedirectUrlByStatus method for dynamic lookup
+    const matchedRedirect = vendor.getRedirectUrlByStatus(normalizedStatus);
+
+    if (matchedRedirect && matchedRedirect.redirectUrl) {
+      redirectUrl = matchedRedirect.redirectUrl;
+      const statusName = (matchedRedirect.statusName || '').toLowerCase();
+
+      if (statusName.includes('complete') || normalizedStatus === '1' || normalizedStatus === 'complete') {
         session.status = 'complete';
         vendor.completedSessions += 1;
         survey.completedSessions += 1;
         thankYouMessage = survey.completePageMessage;
-        pageTitle = 'Complete';
-        break;
-      case 'quota_full':
-      case 'quotafull':
-      case '3':
-        redirectUrl = vendor.quotaFullUrl;
+        pageTitle = matchedRedirect.statusName || 'Complete';
+      } else if (statusName.includes('quota') || normalizedStatus === '3' || normalizedStatus === 'quota_full' || normalizedStatus === 'quotafull') {
         session.status = 'quota_full';
         vendor.quotaFullSessions += 1;
         survey.quotaFullSessions += 1;
         thankYouMessage = survey.quotaFullPageMessage;
-        pageTitle = 'Quota Full';
-        break;
-      case 'security':
-      case 'security_term':
-      case '4':
-        redirectUrl = vendor.securityTermUrl || vendor.terminateUrl;
+        pageTitle = matchedRedirect.statusName || 'Quota Full';
+      } else if (statusName.includes('security') || normalizedStatus === '4' || normalizedStatus === 'security' || normalizedStatus === 'security_term') {
         session.status = 'terminate';
         vendor.terminatedSessions += 1;
         survey.terminatedSessions += 1;
         thankYouMessage = survey.securityTermPageMessage;
-        pageTitle = 'Security Term';
-        break;
-      case 'terminate':
-      case 'terminated':
-      case '2':
-      default:
-        redirectUrl = vendor.terminateUrl;
+        pageTitle = matchedRedirect.statusName || 'Security Term';
+      } else {
         session.status = 'terminate';
         vendor.terminatedSessions += 1;
         survey.terminatedSessions += 1;
         thankYouMessage = survey.terminatePageMessage;
-        pageTitle = 'Terminate';
-        break;
+        pageTitle = matchedRedirect.statusName || 'Terminate';
+      }
+    } else {
+      // No match found — fallback
+      console.warn('No matching redirect URL found for status:', normalizedStatus);
+      const fallback = (vendor.redirectUrls && vendor.redirectUrls.length > 0)
+        ? vendor.redirectUrls[0]
+        : null;
+      redirectUrl = fallback ? fallback.redirectUrl : (vendor.terminateUrl || '');
+      session.status = 'terminate';
+      vendor.terminatedSessions += 1;
+      survey.terminatedSessions += 1;
+      thankYouMessage = survey.terminatePageMessage;
+      pageTitle = fallback ? fallback.statusName : 'Terminate';
     }
 
     // Update session
@@ -371,8 +374,11 @@ exports.handleSurveyReturn = async (req, res, next) => {
           </div>
           <div class="vendor-links">
             <p>Vendor Links:</p>
-            <p><strong>A:</strong> <a href="${vendor.completeUrl}">${vendor.completeUrl}</a></p>
-            <p><strong>B:</strong> <a href="${vendor.terminateUrl}">${vendor.terminateUrl}</a></p>
+            ${(vendor.redirectUrls && vendor.redirectUrls.length > 0)
+              ? vendor.redirectUrls.map(r => `<p><strong>${r.statusName}:</strong> <a href="${r.redirectUrl}">${r.redirectUrl}</a></p>`).join('')
+              : `<p><strong>Complete:</strong> <a href="${vendor.completeUrl}">${vendor.completeUrl}</a></p>
+                 <p><strong>Terminate:</strong> <a href="${vendor.terminateUrl}">${vendor.terminateUrl}</a></p>`
+            }
           </div>
         </div>
       </body>
@@ -408,11 +414,16 @@ exports.testRedirectFlow = async (req, res, next) => {
         quotaFull: `${process.env.BASE_URL}/r/[sessionId]?status=quota_full`,
         terminate: `${process.env.BASE_URL}/r/[sessionId]?status=terminate`
       },
-      vendorEndpoints: {
-        complete: vendor.completeUrl,
-        quotaFull: vendor.quotaFullUrl,
-        terminate: vendor.terminateUrl
-      }
+      vendorEndpoints: (vendor.redirectUrls && vendor.redirectUrls.length > 0)
+        ? vendor.redirectUrls.reduce((acc, r) => {
+            acc[r.statusName] = r.redirectUrl;
+            return acc;
+          }, {})
+        : {
+            complete: vendor.completeUrl,
+            quotaFull: vendor.quotaFullUrl,
+            terminate: vendor.terminateUrl
+          }
     };
 
     res.json({
