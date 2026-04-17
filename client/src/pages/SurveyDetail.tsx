@@ -937,8 +937,6 @@ const SurveyDetail: React.FC = () => {
                       <br />• Terminate: {statusUrls.exitCallback}?status=2
                       <br />• Quota Full: {statusUrls.exitCallback}?status=3
                       <br />• Security: {statusUrls.exitCallback}?status=4
-                      <br /><br />
-                      <strong>Note:</strong> The system automatically appends <strong>tracking_id</strong> to the survey URL when the respondent enters. The exit URLs above will receive it back automatically via the return flow.
                     </Typography>
                   </Alert>
                 </Grid>

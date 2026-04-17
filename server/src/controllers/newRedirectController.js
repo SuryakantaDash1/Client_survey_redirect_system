@@ -258,22 +258,34 @@ exports.handleSurveyExit = async (req, res, next) => {
       return res.status(404).send('Survey not found');
     }
 
-    // ── PREVIEW MODE ──────────────────────────────────────────────────────────
-    // No tracking_id means the client is previewing the page directly.
-    // Show the thank you message with no countdown/redirect.
-    if (!tracking_id) {
-      const { thankYouMessage, pageTitle } = resolveStatusMeta(normalizedStatus, survey);
-      console.log('Preview mode: no tracking_id, showing message for status:', normalizedStatus);
-      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null));
+    // ── FIND SESSION ──────────────────────────────────────────────────────────
+    let session = null;
+
+    if (tracking_id) {
+      // Primary: exact match by tracking_id
+      session = await Session.findOne({ trackingId: tracking_id });
+      if (!session) {
+        console.error('Session not found for tracking_id:', tracking_id);
+      }
     }
 
-    // ── LIVE MODE ─────────────────────────────────────────────────────────────
-    // Find session strictly by tracking_id — no fallbacks
-    const session = await Session.findOne({ trackingId: tracking_id });
-
     if (!session) {
-      console.error('Session not found for tracking_id:', tracking_id);
-      return res.status(404).send('Session not found. Please ensure you accessed this survey via the correct entry URL.');
+      // No tracking_id provided (or not found) — find the most recent active session
+      // for this survey. This handles clients whose platforms don't support parameter piping.
+      session = await Session.findOne({ surveyId: survey._id, status: 'active' })
+        .sort({ entryTime: -1 });
+
+      if (session) {
+        console.log('Session matched by most recent active (no tracking_id):', session.trackingId);
+      }
+    }
+
+    // ── PREVIEW MODE ──────────────────────────────────────────────────────────
+    // No session at all — show thank you message only (client previewing link directly)
+    if (!session) {
+      const { thankYouMessage, pageTitle } = resolveStatusMeta(normalizedStatus, survey);
+      console.log('Preview mode: no active session found for survey:', surveySlug);
+      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null));
     }
 
     if (session.status !== 'active') {
