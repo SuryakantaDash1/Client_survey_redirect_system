@@ -337,7 +337,8 @@ exports.handleSurveyExit = async (req, res, next) => {
     }
 
     // Replace placeholder with actual respondent ID
-    const userIdValue = (session.queryParams && session.queryParams[vendor.entryParameter]) || '';
+    // queryParams is a Mongoose Map — must use .get() not bracket notation
+    const userIdValue = (session.queryParams && session.queryParams.get(vendor.entryParameter)) || '';
     const placeholder = `{{${vendor.parameterPlaceholder}}}`;
     const finalUrl = redirectUrl.replace(placeholder, userIdValue);
 
