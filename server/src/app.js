@@ -36,6 +36,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Static files (logo, assets for status pages)
+app.use('/public', express.static(require('path').join(__dirname, '../public')));
+
 // Compression
 app.use(compression());
 

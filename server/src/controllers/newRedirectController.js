@@ -177,54 +177,170 @@ const resolveStatusMeta = (normalizedStatus, survey) => {
   }
 };
 
+// Status colour config
+const STATUS_STYLES = {
+  complete:  { color: '#2e7d32', bg: '#f1f8e9', icon: '✓', label: 'Survey Complete' },
+  quota_full:{ color: '#e65100', bg: '#fff3e0', icon: '◎', label: 'Quota Full' },
+  terminate: { color: '#6a1b9a', bg: '#f3e5f5', icon: '✕', label: 'Not Qualified' },
+  security:  { color: '#1565c0', bg: '#e3f2fd', icon: '⚑', label: 'Security Check' },
+};
+
+const resolveStyle = (normalizedStatus) => {
+  if (normalizedStatus === '1' || normalizedStatus === 'complete') return STATUS_STYLES.complete;
+  if (normalizedStatus === '3' || normalizedStatus === 'quota_full' || normalizedStatus === 'quotafull') return STATUS_STYLES.quota_full;
+  if (normalizedStatus === '4' || normalizedStatus === 'security' || normalizedStatus === 'security_term') return STATUS_STYLES.security;
+  return STATUS_STYLES.terminate;
+};
+
 // Helper: build thank you page HTML
-const buildThankYouHtml = (pageTitle, surveyName, thankYouMessage, finalUrl = null) => {
+const buildThankYouHtml = (pageTitle, surveyName, thankYouMessage, finalUrl = null, normalizedStatus = '2') => {
   const hasRedirect = !!finalUrl;
+  const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+  const logoUrl = `${baseUrl}/public/logo.png`;
+  const style = resolveStyle(normalizedStatus);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${pageTitle} - ${surveyName}</title>
+  <title>${pageTitle} - Binary & Beyond Research</title>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #2d1b69 0%, #6a1b9a 50%, #1565c0 100%);
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      margin: 0;
       padding: 20px;
     }
-    .container {
-      background: white;
-      padding: 60px 40px;
-      border-radius: 10px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      max-width: 600px;
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+      max-width: 560px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .card-header {
+      background: #ffffff;
+      border-bottom: 1px solid #eeeeee;
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .card-header img {
+      height: 56px;
+      width: auto;
+    }
+    .brand-text { color: #1a1a2e; }
+    .brand-text h2 { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; }
+    .brand-text p { font-size: 12px; color: #666; margin-top: 2px; }
+    .card-body { padding: 40px; text-align: center; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: ${style.bg};
+      color: ${style.color};
+      border-radius: 24px;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+    }
+    .status-badge .icon {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .card-body h1 {
+      color: #1a1a2e;
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      line-height: 1.3;
+    }
+    .divider {
+      width: 48px;
+      height: 3px;
+      background: linear-gradient(90deg, #6a1b9a, #1565c0);
+      border-radius: 2px;
+      margin: 0 auto 24px;
+    }
+    .card-body p {
+      color: #555;
+      font-size: 15px;
+      line-height: 1.8;
+      margin-bottom: 32px;
+    }
+    .countdown-wrap {
+      background: ${style.bg};
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 8px;
+    }
+    .countdown {
+      font-size: 42px;
+      font-weight: 800;
+      color: ${style.color};
+      line-height: 1;
+    }
+    .redirect-info { color: #999; font-size: 13px; margin-top: 8px; }
+    .card-footer {
+      background: #1a1a2e;
+      padding: 20px 40px;
       text-align: center;
     }
-    h1 { color: #333; margin-bottom: 30px; font-size: 32px; }
-    p { color: #666; line-height: 1.8; font-size: 18px; margin-bottom: 30px; }
-    .redirect-info { color: #999; font-size: 14px; margin-top: 20px; }
-    .countdown { font-size: 48px; color: #667eea; font-weight: bold; margin: 20px 0; }
+    .card-footer p { color: #aaa; font-size: 12px; line-height: 1.6; }
+    .card-footer a { color: #9c6fdb; text-decoration: none; }
+    .footer-links { display: flex; justify-content: center; gap: 20px; margin-bottom: 10px; }
+    .footer-links a { color: #ccc; font-size: 12px; text-decoration: none; }
+    .footer-links a:hover { color: #9c6fdb; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>${pageTitle} - ${surveyName}</h1>
-    <p>${thankYouMessage}</p>
-    ${hasRedirect ? `
-    <div class="countdown" id="countdown">3</div>
-    <div class="redirect-info">Redirecting you back in <span id="seconds">3</span> seconds...</div>
-    ` : ''}
+  <div class="card">
+    <div class="card-header">
+      <img src="${logoUrl}" alt="Binary & Beyond Research" onerror="this.style.display='none'"/>
+      <div class="brand-text">
+        <h2>Binary &amp; Beyond Research</h2>
+        <p>Market Research &amp; Investment Advisory</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="status-badge">
+        <span class="icon">${style.icon}</span>
+        ${style.label}
+      </div>
+      <h1>${thankYouMessage}</h1>
+      <div class="divider"></div>
+      ${hasRedirect ? `
+      <div class="countdown-wrap">
+        <div class="countdown" id="countdown">5</div>
+        <div class="redirect-info">You will be redirected in <span id="seconds">5</span> seconds</div>
+      </div>
+      ` : `<p style="color:#999;font-size:13px;">You may now close this window.</p>`}
+    </div>
+    <div class="card-footer">
+      <div class="footer-links">
+        <a href="https://binaryandbeyondresearch.com" target="_blank">Website</a>
+        <a href="https://binaryandbeyondresearch.com/contact" target="_blank">Contact Us</a>
+        <a href="https://binaryandbeyondresearch.com/privacy" target="_blank">Privacy Policy</a>
+      </div>
+      <p>You are participating in a survey conducted by <a href="https://binaryandbeyondresearch.com" target="_blank">binaryandbeyondresearch.com</a></p>
+    </div>
   </div>
   ${hasRedirect ? `
   <div id="redirect-url" data-url="${finalUrl}" style="display:none"></div>
   <script>
     var redirectUrl = document.getElementById('redirect-url').getAttribute('data-url');
-    var seconds = 3;
+    var seconds = 5;
     var countdownEl = document.getElementById('countdown');
     var secondsEl = document.getElementById('seconds');
     var timer = setInterval(function() {
@@ -285,7 +401,7 @@ exports.handleSurveyExit = async (req, res, next) => {
     if (!session) {
       const { thankYouMessage, pageTitle } = resolveStatusMeta(normalizedStatus, survey);
       console.log('Preview mode: no active session found for survey:', surveySlug);
-      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null));
+      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null, normalizedStatus));
     }
 
     if (session.status !== 'active') {
@@ -333,7 +449,7 @@ exports.handleSurveyExit = async (req, res, next) => {
     if (!redirectUrl) {
       // Vendor has no matching redirect URL — show message without redirect
       console.warn('No matching redirect URL for status:', normalizedStatus, 'vendor:', vendor.name);
-      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null));
+      return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, null, normalizedStatus));
     }
 
     // Replace placeholder with actual respondent ID
@@ -344,10 +460,13 @@ exports.handleSurveyExit = async (req, res, next) => {
 
     console.log('Final redirect URL:', finalUrl);
 
-    return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, finalUrl));
+    return res.send(buildThankYouHtml(pageTitle, survey.name, thankYouMessage, finalUrl, normalizedStatus));
 
   } catch (error) {
     console.error('Survey exit error:', error);
     res.status(500).send('An error occurred');
   }
 };
+
+// Export helper so statusPageController can reuse the same branded layout
+exports.buildThankYouHtml = buildThankYouHtml;
