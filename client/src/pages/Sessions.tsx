@@ -33,7 +33,8 @@ import {
   HourglassEmpty as HourglassIcon,
   Refresh as RefreshIcon,
   FilterList as FilterListIcon,
-  ClearAll as ClearAllIcon
+  ClearAll as ClearAllIcon,
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -276,6 +277,46 @@ const Sessions: React.FC = () => {
     setTabValue(0);
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Session ID', 'Survey', 'Vendor', 'Status', 'Entry Time', 'Exit Time', 'Duration (seconds)', 'IP Address'];
+
+    const rows = filteredSessions.map(session => {
+      const durationMs = session.exitTime
+        ? new Date(session.exitTime).getTime() - new Date(session.entryTime).getTime()
+        : null;
+      const durationSec = durationMs !== null ? Math.floor(durationMs / 1000) : '';
+
+      return [
+        session.sessionId,
+        session.surveyId?.name || '',
+        session.vendorId?.name || '',
+        session.status,
+        session.entryTime ? format(new Date(session.entryTime), 'yyyy-MM-dd HH:mm:ss') : '',
+        session.exitTime ? format(new Date(session.exitTime), 'yyyy-MM-dd HH:mm:ss') : '',
+        durationSec,
+        session.ipAddress || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`);
+    });
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const surveyLabel = selectedSurvey !== 'all'
+      ? (surveys.find(s => s._id === selectedSurvey)?.name || 'survey').replace(/\s+/g, '-')
+      : 'all-surveys';
+    const vendorLabel = selectedVendor !== 'all'
+      ? (vendors.find(v => v._id === selectedVendor)?.name || 'vendor').replace(/\s+/g, '-')
+      : 'all-vendors';
+    const statusLabel = statusTabs[tabValue] === 'all' ? 'all-status' : statusTabs[tabValue];
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sessions-${surveyLabel}-${vendorLabel}-${statusLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
   };
@@ -404,7 +445,7 @@ const Sessions: React.FC = () => {
           </Grid>
 
           <Grid item xs={12} sm={12} md={4}>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <Button
                 variant="outlined"
                 startIcon={<ClearAllIcon />}
@@ -420,6 +461,16 @@ const Sessions: React.FC = () => {
                 size="small"
               >
                 Refresh
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<DownloadIcon />}
+                onClick={handleExportCSV}
+                size="small"
+                disabled={filteredSessions.length === 0}
+              >
+                Export CSV ({filteredSessions.length})
               </Button>
             </Box>
           </Grid>
