@@ -24,11 +24,18 @@ const surveySchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  // Legacy single URL (kept for backward compat)
   clientUrl: {
     type: String,
-    required: true,
-    trim: true
+    trim: true,
+    default: ''
   },
+  // Multiple client survey URLs
+  clientUrls: [{
+    name: { type: String, required: true, trim: true },
+    url: { type: String, required: true, trim: true },
+    urlSlug: { type: String, trim: true }
+  }],
   isActive: {
     type: Boolean,
     default: true
@@ -86,22 +93,36 @@ surveySchema.virtual('vendors', {
   foreignField: 'surveyId'
 });
 
+const generateSimpleSlug = (name) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
 // Pre-save hook to generate slug
 surveySchema.pre('save', async function(next) {
   try {
     if (!this.surveySlug && this.isNew) {
       let slug = generateSlug(this.name);
       let counter = 1;
-
-      // Check for uniqueness and add counter if needed
       while (await this.constructor.findOne({ surveySlug: slug })) {
         slug = generateSlug(this.name) + '-' + counter;
         counter++;
       }
-
       this.surveySlug = slug;
-      console.log('Generated slug:', slug, 'for survey:', this.name);
     }
+
+    // Auto-generate urlSlug for any clientUrl entry that doesn't have one
+    if (this.clientUrls && this.clientUrls.length > 0) {
+      this.clientUrls.forEach((entry, i) => {
+        if (!entry.urlSlug) {
+          entry.urlSlug = generateSimpleSlug(entry.name) || `url-${i + 1}`;
+        }
+      });
+    }
+
+    // Sync legacy clientUrl from first entry for backward compat
+    if (this.clientUrls && this.clientUrls.length > 0 && !this.clientUrl) {
+      this.clientUrl = this.clientUrls[0].url;
+    }
+
     next();
   } catch (error) {
     console.error('Error in pre-save hook:', error);

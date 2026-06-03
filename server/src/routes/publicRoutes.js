@@ -9,7 +9,8 @@ router.get('/:surveySlug/terminate', statusPageController.showStatusPage);
 router.get('/:surveySlug/quotafull', statusPageController.showStatusPage);
 router.get('/:surveySlug/security', statusPageController.showStatusPage);
 
-// Vendor entry: /r/:surveySlug/:vendorSlug
+// Vendor entry: /r/:surveySlug/:vendorSlug  OR  /r/:surveySlug/:vendorSlug/:urlSlug
+router.get('/r/:surveySlug/:vendorSlug/:urlSlug', newRedirectController.handleVendorEntry);
 router.get('/r/:surveySlug/:vendorSlug', newRedirectController.handleVendorEntry);
 
 // Exit callback: /exit/:surveySlug

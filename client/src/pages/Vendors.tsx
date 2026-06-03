@@ -91,6 +91,7 @@ const Vendors: React.FC = () => {
   const navigate = useNavigate();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [surveyName, setSurveyName] = useState('');
+  const [surveyClientUrls, setSurveyClientUrls] = useState<{ name: string; url: string; urlSlug: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [openUrlDialog, setOpenUrlDialog] = useState(false);
@@ -118,6 +119,7 @@ const Vendors: React.FC = () => {
     try {
       const response = await axios.get(`/surveys/${surveyId}`);
       setSurveyName(response.data.data.name);
+      setSurveyClientUrls(response.data.data.clientUrls || []);
     } catch (error) {
       console.error('Failed to fetch survey name:', error);
     }
@@ -552,53 +554,60 @@ const Vendors: React.FC = () => {
           <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
             Entry URL (Share with Vendor)
           </Typography>
-          <Typography variant="body2" color="textSecondary" gutterBottom>
-            This is the URL vendors use to send respondents:
+          <Typography variant="body2" color="textSecondary" gutterBottom sx={{ mb: 2 }}>
+            Share these URLs with the vendor. Each URL corresponds to a specific survey audience/link.
           </Typography>
-          <Box
-            sx={{
-              p: 2,
-              bgcolor: 'grey.100',
-              borderRadius: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              mb: 2
-            }}
-          >
-            <Typography
-              variant="body1"
-              sx={{ fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}
-            >
-              {selectedVendorUrl}
-            </Typography>
-            <IconButton onClick={() => handleCopyUrl(selectedVendorUrl)} sx={{ ml: 2 }}>
-              <CopyIcon />
-            </IconButton>
-          </Box>
 
-          {selectedVendor && (
-            <Alert severity="success" sx={{ mb: 3 }}>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                Share with Vendor:
-              </Typography>
-              <Typography variant="body2" component="div" sx={{ mb: 1 }}>
-                Send this URL with the parameter placeholder:
-              </Typography>
-              <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, mb: 1 }}>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {selectedVendorUrl}?{selectedVendor.entryParameter}={'{'}YOUR_ID{'}'}
+          {selectedVendor && surveyClientUrls.length > 0 ? (
+            // Multiple client URLs — show one entry per URL
+            surveyClientUrls.map((clientUrl, idx) => {
+              const entryUrl = `${selectedVendorUrl.replace(/\/[^/]+$/, '')}/${selectedVendor.vendorSlug}/${clientUrl.urlSlug}`;
+              return (
+                <Box key={idx} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 2, mb: 2 }}>
+                  <Typography variant="body2" fontWeight={700} color="primary" gutterBottom>
+                    {clientUrl.name}
+                  </Typography>
+                  <Box sx={{ p: 1.5, bgcolor: 'grey.100', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>
+                      {entryUrl}
+                    </Typography>
+                    <IconButton size="small" onClick={() => handleCopyUrl(entryUrl)} sx={{ ml: 1 }}>
+                      <CopyIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Alert severity="success" sx={{ py: 0.5 }}>
+                    <Typography variant="body2">
+                      <strong>Share with vendor:</strong>{' '}
+                      <span style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        {entryUrl}?{selectedVendor.entryParameter}={'{YOUR_ID}'}
+                      </span>
+                    </Typography>
+                  </Alert>
+                </Box>
+              );
+            })
+          ) : (
+            // Single / legacy URL
+            <>
+              <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="body1" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>
+                  {selectedVendorUrl}
                 </Typography>
+                <IconButton onClick={() => handleCopyUrl(selectedVendorUrl)} sx={{ ml: 2 }}>
+                  <CopyIcon />
+                </IconButton>
               </Box>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', mt: 1.5, mb: 0.5 }}>
-                Example:
-              </Typography>
-              <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {selectedVendorUrl}?{selectedVendor.entryParameter}={selectedVendor.parameterPlaceholder}123
-                </Typography>
-              </Box>
-            </Alert>
+              {selectedVendor && (
+                <Alert severity="success" sx={{ mb: 3 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>Share with Vendor:</Typography>
+                  <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, mb: 1 }}>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {selectedVendorUrl}?{selectedVendor.entryParameter}={'{'}YOUR_ID{'}'}
+                    </Typography>
+                  </Box>
+                </Alert>
+              )}
+            </>
           )}
 
           <Typography variant="h6" gutterBottom>

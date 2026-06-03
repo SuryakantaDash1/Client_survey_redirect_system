@@ -47,6 +47,7 @@ interface SurveyDetails {
   surveySlug: string;
   description?: string;
   clientUrl: string;
+  clientUrls: { name: string; url: string; urlSlug: string }[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -96,8 +97,13 @@ const SurveyDetail: React.FC = () => {
     color: ''
   });
   const [editingConfig, setEditingConfig] = useState(false);
-  const [configData, setConfigData] = useState({
+  const [configData, setConfigData] = useState<{
+    clientUrl: string;
+    clientUrls: { name: string; url: string; urlSlug: string }[];
+    isActive: boolean;
+  }>({
     clientUrl: '',
+    clientUrls: [],
     isActive: true
   });
   const [editMessageDialog, setEditMessageDialog] = useState<{
@@ -128,7 +134,8 @@ const SurveyDetail: React.FC = () => {
       setVendors(vendorsRes.data.data || []);
       setStatusUrls(urlsRes.data.data);
       setConfigData({
-        clientUrl: surveyData.clientUrl,
+        clientUrl: surveyData.clientUrl || '',
+        clientUrls: surveyData.clientUrls || [],
         isActive: surveyData.isActive
       });
     } catch (error) {
@@ -893,20 +900,90 @@ const SurveyDetail: React.FC = () => {
 
               <Grid container spacing={3}>
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                    Client Survey URL *
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="subtitle2" color="textSecondary">
+                      Client Survey URLs
+                    </Typography>
+                    {editingConfig && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setConfigData({
+                          ...configData,
+                          clientUrls: [...configData.clientUrls, { name: '', url: '', urlSlug: '' }]
+                        })}
+                      >
+                        + Add Survey URL
+                      </Button>
+                    )}
+                  </Box>
+
                   {editingConfig ? (
-                    <TextField
-                      fullWidth
-                      value={configData.clientUrl}
-                      onChange={(e) => setConfigData({ ...configData, clientUrl: e.target.value })}
-                      placeholder="https://surveyplatform.com/client-survey/"
-                      helperText="The survey platform URL where respondents will be sent"
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {configData.clientUrls.length === 0 && (
+                        <Typography variant="body2" color="textSecondary" sx={{ fontStyle: 'italic' }}>
+                          No URLs added yet. Click "+ Add Survey URL" to add one.
+                        </Typography>
+                      )}
+                      {configData.clientUrls.map((entry, idx) => (
+                        <Box key={idx} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 2 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="body2" fontWeight={600} color="primary">
+                              URL #{idx + 1}
+                            </Typography>
+                            <Button
+                              size="small"
+                              color="error"
+                              onClick={() => setConfigData({
+                                ...configData,
+                                clientUrls: configData.clientUrls.filter((_, i) => i !== idx)
+                              })}
+                            >
+                              Remove
+                            </Button>
+                          </Box>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Name / Audience"
+                            placeholder="e.g. IND Cardiovascular Surgeons"
+                            value={entry.name}
+                            onChange={(e) => {
+                              const updated = [...configData.clientUrls];
+                              updated[idx] = { ...updated[idx], name: e.target.value };
+                              setConfigData({ ...configData, clientUrls: updated });
+                            }}
+                            sx={{ mb: 1.5 }}
+                          />
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Survey URL"
+                            placeholder="https://hub.m3globalresearch.com/test/XXXXX/"
+                            value={entry.url}
+                            onChange={(e) => {
+                              const updated = [...configData.clientUrls];
+                              updated[idx] = { ...updated[idx], url: e.target.value };
+                              setConfigData({ ...configData, clientUrls: updated });
+                            }}
+                          />
+                        </Box>
+                      ))}
+                    </Box>
                   ) : (
-                    <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontFamily: 'monospace' }}>
-                      {survey.clientUrl}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      {(survey.clientUrls && survey.clientUrls.length > 0) ? survey.clientUrls.map((entry, idx) => (
+                        <Box key={idx} sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                          <Typography variant="body2" fontWeight={600} gutterBottom>{entry.name}</Typography>
+                          <Typography sx={{ fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-all' }}>
+                            {entry.url}
+                          </Typography>
+                        </Box>
+                      )) : (
+                        <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontFamily: 'monospace' }}>
+                          {survey.clientUrl || '—'}
+                        </Box>
+                      )}
                     </Box>
                   )}
                 </Grid>
@@ -979,7 +1056,8 @@ const SurveyDetail: React.FC = () => {
                         onClick={() => {
                           setEditingConfig(false);
                           setConfigData({
-                            clientUrl: survey.clientUrl,
+                            clientUrl: survey.clientUrl || '',
+                            clientUrls: survey.clientUrls || [],
                             isActive: survey.isActive
                           });
                         }}

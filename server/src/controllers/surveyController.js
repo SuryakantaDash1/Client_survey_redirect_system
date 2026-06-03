@@ -80,6 +80,7 @@ exports.updateSurvey = async (req, res, next) => {
     if (req.body.name !== undefined) survey.name = req.body.name;
     if (req.body.description !== undefined) survey.description = req.body.description;
     if (req.body.clientUrl !== undefined) survey.clientUrl = req.body.clientUrl;
+    if (req.body.clientUrls !== undefined) survey.clientUrls = req.body.clientUrls;
     if (req.body.isActive !== undefined) survey.isActive = req.body.isActive;
     if (req.body.completePageMessage !== undefined) survey.completePageMessage = req.body.completePageMessage;
     if (req.body.terminatePageMessage !== undefined) survey.terminatePageMessage = req.body.terminatePageMessage;

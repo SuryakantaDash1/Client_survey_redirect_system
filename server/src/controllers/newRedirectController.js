@@ -44,10 +44,10 @@ exports.handleVendorEntry = async (req, res, next) => {
   const startTime = Date.now();
 
   try {
-    const { surveySlug, vendorSlug } = req.params;
+    const { surveySlug, vendorSlug, urlSlug } = req.params;
     const queryParams = req.query;
 
-    console.log('Entry request:', { surveySlug, vendorSlug, queryParams });
+    console.log('Entry request:', { surveySlug, vendorSlug, urlSlug, queryParams });
 
     // Find survey by slug
     const survey = await Survey.findOne({ surveySlug, isActive: true });
@@ -66,8 +66,22 @@ exports.handleVendorEntry = async (req, res, next) => {
       return res.status(404).send('Vendor not found or inactive');
     }
 
+    // Resolve which client URL to use:
+    // 1. If urlSlug provided, find matching entry in clientUrls array
+    // 2. Else use first entry in clientUrls array
+    // 3. Else fall back to legacy clientUrl field
+    let resolvedClientUrl = survey.clientUrl || '';
+    if (survey.clientUrls && survey.clientUrls.length > 0) {
+      if (urlSlug) {
+        const match = survey.clientUrls.find(u => u.urlSlug === urlSlug);
+        resolvedClientUrl = match ? match.url : survey.clientUrls[0].url;
+      } else {
+        resolvedClientUrl = survey.clientUrls[0].url;
+      }
+    }
+
     // Validate survey URL
-    if (!survey.clientUrl.startsWith('http://') && !survey.clientUrl.startsWith('https://')) {
+    if (!resolvedClientUrl.startsWith('http://') && !resolvedClientUrl.startsWith('https://')) {
       return res.status(500).send(`
         <!DOCTYPE html>
         <html>
@@ -152,7 +166,7 @@ exports.handleVendorEntry = async (req, res, next) => {
       return_url: `${baseUrl}/exit/${survey.surveySlug}`
     };
 
-    const redirectUrl = buildUrlWithParams(survey.clientUrl, redirectParams);
+    const redirectUrl = buildUrlWithParams(resolvedClientUrl, redirectParams);
 
     console.log(`Entry redirect completed in ${Date.now() - startTime}ms`);
 
