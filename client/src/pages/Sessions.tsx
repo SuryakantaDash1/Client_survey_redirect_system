@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 interface Session {
   _id: string;
@@ -277,44 +278,58 @@ const Sessions: React.FC = () => {
     setTabValue(0);
   };
 
-  const handleExportCSV = () => {
-    const headers = ['Session ID', 'Survey', 'Vendor', 'Status', 'Entry Time', 'Exit Time', 'Duration (seconds)', 'IP Address'];
+  const handleExportExcel = () => {
+    const surveyLabel = selectedSurvey !== 'all'
+      ? (surveys.find(s => s._id === selectedSurvey)?.name || 'survey').replace(/\s+/g, '-')
+      : 'All Surveys';
+    const vendorLabel = selectedVendor !== 'all'
+      ? (vendors.find(v => v._id === selectedVendor)?.name || 'vendor').replace(/\s+/g, '-')
+      : 'All Vendors';
+    const statusLabel = tabValue === 0 ? 'All Status'
+      : tabValue === 1 ? 'Active'
+      : tabValue === 2 ? 'Completed'
+      : tabValue === 3 ? 'Terminated'
+      : 'Quota Full';
 
-    const rows = filteredSessions.map(session => {
-      const durationMs = session.exitTime
+    const rows = filteredSessions.map((session, idx) => {
+      const durationMs = session.exitTime && session.entryTime
         ? new Date(session.exitTime).getTime() - new Date(session.entryTime).getTime()
         : null;
       const durationSec = durationMs !== null ? Math.floor(durationMs / 1000) : '';
 
-      return [
-        session.sessionId,
-        session.surveyId?.name || '',
-        session.vendorId?.name || '',
-        session.status,
-        session.entryTime ? format(new Date(session.entryTime), 'yyyy-MM-dd HH:mm:ss') : '',
-        session.exitTime ? format(new Date(session.exitTime), 'yyyy-MM-dd HH:mm:ss') : '',
-        durationSec,
-        session.ipAddress || ''
-      ].map(val => `"${String(val).replace(/"/g, '""')}"`);
+      return {
+        'S.No': idx + 1,
+        'Session ID': session.sessionId || '',
+        'Survey': session.surveyId?.name || '',
+        'Vendor': session.vendorId?.name || '',
+        'Status': session.status ? session.status.charAt(0).toUpperCase() + session.status.slice(1).replace('_', ' ') : '',
+        'Entry Time': session.entryTime ? format(new Date(session.entryTime), 'dd/MM/yyyy HH:mm:ss') : '',
+        'Exit Time': session.exitTime ? format(new Date(session.exitTime), 'dd/MM/yyyy HH:mm:ss') : '',
+        'Duration (sec)': durationSec,
+        'IP Address': session.ipAddress || '',
+      };
     });
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const worksheet = XLSX.utils.json_to_sheet(rows);
 
-    const surveyLabel = selectedSurvey !== 'all'
-      ? (surveys.find(s => s._id === selectedSurvey)?.name || 'survey').replace(/\s+/g, '-')
-      : 'all-surveys';
-    const vendorLabel = selectedVendor !== 'all'
-      ? (vendors.find(v => v._id === selectedVendor)?.name || 'vendor').replace(/\s+/g, '-')
-      : 'all-vendors';
-    const statusLabel = statusTabs[tabValue] === 'all' ? 'all-status' : statusTabs[tabValue];
+    // Column widths
+    worksheet['!cols'] = [
+      { wch: 6 },  // S.No
+      { wch: 38 }, // Session ID
+      { wch: 28 }, // Survey
+      { wch: 22 }, // Vendor
+      { wch: 14 }, // Status
+      { wch: 22 }, // Entry Time
+      { wch: 22 }, // Exit Time
+      { wch: 15 }, // Duration
+      { wch: 16 }, // IP Address
+    ];
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sessions-${surveyLabel}-${vendorLabel}-${statusLabel}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sessions');
+
+    const filename = `sessions-${surveyLabel}-${vendorLabel}-${statusLabel}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleChangePage = (event: unknown, newPage: number) => {
@@ -466,11 +481,11 @@ const Sessions: React.FC = () => {
                 variant="contained"
                 color="success"
                 startIcon={<DownloadIcon />}
-                onClick={handleExportCSV}
+                onClick={handleExportExcel}
                 size="small"
                 disabled={filteredSessions.length === 0}
               >
-                Export CSV ({filteredSessions.length})
+                Export Excel ({filteredSessions.length})
               </Button>
             </Box>
           </Grid>
