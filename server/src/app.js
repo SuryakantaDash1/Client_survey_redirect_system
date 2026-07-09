@@ -22,6 +22,10 @@ app.use(helmet({
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       "script-src": ["'self'", "'unsafe-inline'"],
+      // This is a redirect service: the screener form legitimately redirects
+      // respondents to external client survey URLs after submission. The default
+      // "form-action 'self'" blocks that redirect chain, so allow http/https targets.
+      "form-action": ["'self'", "https:", "http:"],
     },
   },
 }));

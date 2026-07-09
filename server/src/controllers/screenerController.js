@@ -67,21 +67,20 @@ exports.showScreener = async (req, res, next) => {
     const questions = [...survey.screenerQuestions].sort((a, b) => (a.order || 0) - (b.order || 0));
 
     const questionsHtml = questions.map((q, qi) => {
-      const req = q.required ? 'required' : '';
       const requiredMark = q.required ? ' <span class="required-star">*</span>' : ' <span class="optional">(optional)</span>';
       let fieldHtml;
 
       if (q.type === 'text') {
-        fieldHtml = `<input class="field" type="text" name="q${qi}" placeholder="Type your answer" ${req}>`;
+        fieldHtml = `<input class="field" type="text" name="q${qi}" placeholder="Type your answer">`;
       } else if (q.type === 'number') {
-        fieldHtml = `<input class="field" type="number" name="q${qi}" placeholder="Enter a number" ${req}>`;
+        fieldHtml = `<input class="field" type="number" name="q${qi}" placeholder="Enter a number">`;
       } else if (q.type === 'textarea') {
-        fieldHtml = `<textarea class="field" name="q${qi}" rows="3" placeholder="Type your answer" ${req}></textarea>`;
+        fieldHtml = `<textarea class="field" name="q${qi}" rows="3" placeholder="Type your answer"></textarea>`;
       } else {
         // mcq
         const optionsHtml = q.options.map((opt, oi) => `
           <label class="option">
-            <input type="radio" name="q${qi}" value="${oi}" ${req}>
+            <input type="radio" name="q${qi}" value="${oi}">
             <span>${escapeHtml(opt.text)}</span>
           </label>
         `).join('');
@@ -89,9 +88,10 @@ exports.showScreener = async (req, res, next) => {
       }
 
       return `
-        <div class="question">
+        <div class="question" data-qindex="${qi}" data-required="${q.required ? 'true' : 'false'}" data-type="${q.type || 'mcq'}">
           <div class="q-title"><span class="q-num">${qi + 1}.</span> ${escapeHtml(q.questionText)}${requiredMark}</div>
           ${fieldHtml}
+          <div class="q-error">This question is required.</div>
         </div>
       `;
     }).join('');
@@ -123,6 +123,9 @@ exports.showScreener = async (req, res, next) => {
     .q-num { color:#6a1b9a; font-weight:700; }
     .optional { font-size:12px; color:#999; font-weight:400; }
     .required-star { color:#e53935; font-weight:700; }
+    .q-error { display:none; color:#e53935; font-size:13px; margin-top:8px; font-weight:600; }
+    .question.invalid .field { border-color:#e53935; }
+    .question.invalid .q-error { display:block; }
     .field { width:100%; padding:13px 16px; border:1.5px solid #e0e0e0; border-radius:10px;
       font-size:15px; font-family:inherit; outline:none; transition:border-color .15s; }
     .field:focus { border-color:#6a1b9a; }
@@ -151,7 +154,7 @@ exports.showScreener = async (req, res, next) => {
         <p>Market Research &amp; Investment Advisory</p>
       </div>
     </div>
-    <form class="card-body" method="POST" action="/screen/${trackingId}/submit">
+    <form id="screener-form" class="card-body" method="POST" action="/screen/${trackingId}/submit" novalidate>
       <p class="intro">Please answer the following questions to check your eligibility for this study.</p>
       ${questionsHtml}
       <button type="submit" class="submit-btn">Submit &amp; Continue</button>
@@ -160,6 +163,36 @@ exports.showScreener = async (req, res, next) => {
       <p>Conducted by <a href="https://binaryandbeyondresearch.com" target="_blank">binaryandbeyondresearch.com</a></p>
     </div>
   </div>
+  <script>
+    (function () {
+      var form = document.getElementById('screener-form');
+      form.addEventListener('submit', function (e) {
+        var firstInvalid = null;
+        var blocks = form.querySelectorAll('.question');
+        for (var i = 0; i < blocks.length; i++) {
+          var block = blocks[i];
+          block.classList.remove('invalid');
+          if (block.getAttribute('data-required') !== 'true') continue;
+          var type = block.getAttribute('data-type');
+          var valid = true;
+          if (type === 'mcq') {
+            valid = !!block.querySelector('input[type=radio]:checked');
+          } else {
+            var input = block.querySelector('input, textarea');
+            valid = input && input.value.trim() !== '';
+          }
+          if (!valid) {
+            block.classList.add('invalid');
+            if (!firstInvalid) firstInvalid = block;
+          }
+        }
+        if (firstInvalid) {
+          e.preventDefault();
+          firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    })();
+  </script>
 </body>
 </html>`;
 
