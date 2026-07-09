@@ -65,8 +65,6 @@ exports.showScreener = async (req, res, next) => {
     }
 
     const questions = [...survey.screenerQuestions].sort((a, b) => (a.order || 0) - (b.order || 0));
-    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
-    const logoUrl = `${baseUrl}/public/logo.png`;
 
     const questionsHtml = questions.map((q, qi) => {
       const req = q.required ? 'required' : '';
@@ -147,13 +145,13 @@ exports.showScreener = async (req, res, next) => {
 <body>
   <div class="card">
     <div class="card-header">
-      <img src="${logoUrl}" alt="Binary & Beyond Research" onerror="this.style.display='none'"/>
+      <img src="/public/logo.png" alt="Binary & Beyond Research" onerror="this.style.display='none'"/>
       <div class="brand-text">
         <h2>Binary &amp; Beyond Research</h2>
         <p>Market Research &amp; Investment Advisory</p>
       </div>
     </div>
-    <form class="card-body" method="POST" action="${baseUrl}/screen/${trackingId}/submit">
+    <form class="card-body" method="POST" action="/screen/${trackingId}/submit">
       <p class="intro">Please answer the following questions to check your eligibility for this study.</p>
       ${questionsHtml}
       <button type="submit" class="submit-btn">Submit &amp; Continue</button>
