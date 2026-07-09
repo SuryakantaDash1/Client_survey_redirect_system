@@ -133,6 +133,7 @@ exports.handleVendorEntry = async (req, res, next) => {
       surveyId: survey._id,
       queryParams: queryParams,
       status: 'active',
+      clientSurveyUrl: resolvedClientUrl,
       ipAddress: req.ip || req.connection.remoteAddress,
       userAgent: req.headers['user-agent'],
       entryTime: new Date()
@@ -158,8 +159,15 @@ exports.handleVendorEntry = async (req, res, next) => {
       survey: survey.name
     });
 
-    // Build redirect URL with tracking_id
     const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+
+    // If this survey has a screener questionnaire, send respondent there first
+    if (survey.screenerQuestions && survey.screenerQuestions.length > 0) {
+      console.log(`Entry redirect to screener in ${Date.now() - startTime}ms`);
+      return res.redirect(`${baseUrl}/screen/${session.trackingId}`);
+    }
+
+    // No screener — go straight to the client survey (original behavior)
     const redirectParams = {
       ...queryParams,
       tracking_id: session.trackingId,

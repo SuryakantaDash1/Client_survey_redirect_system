@@ -24,7 +24,12 @@ import {
   Button,
   TablePagination,
   IconButton,
-  Tooltip
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -34,7 +39,8 @@ import {
   Refresh as RefreshIcon,
   FilterList as FilterListIcon,
   ClearAll as ClearAllIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -58,6 +64,8 @@ interface Session {
   entryTime: string;
   exitTime?: string;
   createdAt: string;
+  terminationSource?: 'screener' | 'survey' | null;
+  screenerAnswers?: { questionText: string; answerText: string; action: string }[];
 }
 
 interface Survey {
@@ -137,6 +145,7 @@ const Sessions: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
+  const [detailSession, setDetailSession] = useState<Session | null>(null);
 
   const statusTabs = ['all', 'active', 'complete', 'terminate', 'quota_full'];
 
@@ -291,38 +300,60 @@ const Sessions: React.FC = () => {
       : tabValue === 3 ? 'Terminated'
       : 'Quota Full';
 
+    // Collect all unique screener question texts across the filtered sessions,
+    // so each question becomes its own column (in question order).
+    const screenerColumns: string[] = [];
+    filteredSessions.forEach(s => {
+      (s.screenerAnswers || []).forEach(a => {
+        if (!screenerColumns.includes(a.questionText)) screenerColumns.push(a.questionText);
+      });
+    });
+
     const rows = filteredSessions.map((session, idx) => {
       const durationMs = session.exitTime && session.entryTime
         ? new Date(session.exitTime).getTime() - new Date(session.entryTime).getTime()
         : null;
       const durationSec = durationMs !== null ? Math.floor(durationMs / 1000) : '';
 
-      return {
+      const base: Record<string, any> = {
         'S.No': idx + 1,
         'Session ID': session.sessionId || '',
         'Survey': session.surveyId?.name || '',
         'Vendor': session.vendorId?.name || '',
         'Status': session.status ? session.status.charAt(0).toUpperCase() + session.status.slice(1).replace('_', ' ') : '',
+        'Terminated At': session.terminationSource === 'screener' ? 'Screener'
+          : session.terminationSource === 'survey' ? 'Survey'
+          : '',
         'Entry Time': session.entryTime ? format(new Date(session.entryTime), 'dd/MM/yyyy HH:mm:ss') : '',
         'Exit Time': session.exitTime ? format(new Date(session.exitTime), 'dd/MM/yyyy HH:mm:ss') : '',
         'Duration (sec)': durationSec,
         'IP Address': session.ipAddress || '',
       };
+
+      // One column per screener question
+      screenerColumns.forEach(qText => {
+        const ans = (session.screenerAnswers || []).find(a => a.questionText === qText);
+        base[qText] = ans ? ans.answerText : '';
+      });
+
+      return base;
     });
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
 
-    // Column widths
+    // Column widths (base columns + one per screener question)
     worksheet['!cols'] = [
       { wch: 6 },  // S.No
       { wch: 38 }, // Session ID
       { wch: 28 }, // Survey
       { wch: 22 }, // Vendor
       { wch: 14 }, // Status
+      { wch: 14 }, // Terminated At
       { wch: 22 }, // Entry Time
       { wch: 22 }, // Exit Time
       { wch: 15 }, // Duration
       { wch: 16 }, // IP Address
+      ...screenerColumns.map(() => ({ wch: 22 })),
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -516,12 +547,13 @@ const Sessions: React.FC = () => {
                 <TableCell>Exit Time</TableCell>
                 <TableCell>Duration</TableCell>
                 <TableCell>IP Address</TableCell>
+                <TableCell align="center">Details</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedSessions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={9} align="center">
                     <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
                       No sessions found
                     </Typography>
@@ -553,6 +585,19 @@ const Sessions: React.FC = () => {
                         {session.ipAddress}
                       </Typography>
                     </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="View screener answers">
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => setDetailSession(session)}
+                            disabled={!session.screenerAnswers || session.screenerAnswers.length === 0}
+                          >
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -569,6 +614,48 @@ const Sessions: React.FC = () => {
           />
         </TableContainer>
       </Paper>
+
+      {/* Screener Answers Detail Dialog */}
+      <Dialog open={!!detailSession} onClose={() => setDetailSession(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Respondent Details</DialogTitle>
+        <DialogContent dividers>
+          {detailSession && (
+            <>
+              <Grid container spacing={1} sx={{ mb: 2 }}>
+                <Grid item xs={6}><Typography variant="caption" color="textSecondary">Survey</Typography><Typography variant="body2">{detailSession.surveyId?.name || '-'}</Typography></Grid>
+                <Grid item xs={6}><Typography variant="caption" color="textSecondary">Vendor</Typography><Typography variant="body2">{detailSession.vendorId?.name || '-'}</Typography></Grid>
+                <Grid item xs={6}><Typography variant="caption" color="textSecondary">Status</Typography><Box>{getStatusChip(detailSession.status)}</Box></Grid>
+                <Grid item xs={6}><Typography variant="caption" color="textSecondary">Terminated At</Typography><Typography variant="body2">{detailSession.terminationSource === 'screener' ? 'Screener' : detailSession.terminationSource === 'survey' ? 'Survey' : '-'}</Typography></Grid>
+              </Grid>
+              <Divider sx={{ mb: 2 }} />
+              <Typography variant="subtitle2" gutterBottom>Screener Answers</Typography>
+              {detailSession.screenerAnswers && detailSession.screenerAnswers.length > 0 ? (
+                detailSession.screenerAnswers.map((a, i) => (
+                  <Box key={i} sx={{ mb: 1.5, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.8rem' }}>{a.questionText}</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {a.answerText}
+                      {a.action && a.action !== 'continue' && (
+                        <Chip
+                          size="small"
+                          label={a.action.startsWith('survey:') ? `→ ${a.action.slice(7)}` : a.action.replace('_', ' ')}
+                          color={a.action === 'terminate' ? 'error' : a.action === 'quota_full' ? 'warning' : 'success'}
+                          sx={{ ml: 1, height: 20 }}
+                        />
+                      )}
+                    </Typography>
+                  </Box>
+                ))
+              ) : (
+                <Typography variant="body2" color="textSecondary">No screener answers recorded.</Typography>
+              )}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailSession(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

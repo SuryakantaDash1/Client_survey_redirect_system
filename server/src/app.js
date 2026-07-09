@@ -52,9 +52,11 @@ if (process.env.NODE_ENV === 'development') {
 // Rate limiting for API routes
 const apiLimiter = rateLimit({
   windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
-  max: process.env.RATE_LIMIT_MAX_REQUESTS || 100,
+  max: process.env.RATE_LIMIT_MAX_REQUESTS || 1000,
   message: 'Too many requests from this IP, please try again later.',
   skip: (req) => {
+    // Disable rate limiting entirely in development
+    if (process.env.NODE_ENV !== 'production') return true;
     // Skip rate limiting for public redirect routes
     return req.path.startsWith('/v/') || req.path.startsWith('/r/') || req.path.startsWith('/exit/');
   }

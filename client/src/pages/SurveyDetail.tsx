@@ -18,13 +18,15 @@ import {
   TextField,
   Switch,
   FormControlLabel,
-  Alert
+  Alert,
+  IconButton
 } from '@mui/material';
 import {
   ArrowBack,
   People,
   ContentCopy as CopyIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import {
   PieChart,
@@ -55,6 +57,21 @@ interface SurveyDetails {
   terminatePageMessage: string;
   quotaFullPageMessage: string;
   securityTermPageMessage: string;
+  screenerQuestions?: ScreenerQuestion[];
+}
+
+interface ScreenerOption {
+  text: string;
+  // 'continue' | 'terminate' | 'quota_full' | 'survey:<urlSlug>'
+  action: string;
+}
+
+interface ScreenerQuestion {
+  questionText: string;
+  order: number;
+  type: 'text' | 'number' | 'textarea' | 'mcq';
+  required: boolean;
+  options: ScreenerOption[];
 }
 
 interface StatusUrls {
@@ -115,6 +132,8 @@ const SurveyDetail: React.FC = () => {
     type: 'complete',
     message: ''
   });
+  const [screenerQuestions, setScreenerQuestions] = useState<ScreenerQuestion[]>([]);
+  const [savingScreener, setSavingScreener] = useState(false);
 
   useEffect(() => {
     fetchSurveyDetails();
@@ -138,6 +157,7 @@ const SurveyDetail: React.FC = () => {
         clientUrls: surveyData.clientUrls || [],
         isActive: surveyData.isActive
       });
+      setScreenerQuestions(surveyData.screenerQuestions || []);
     } catch (error) {
       console.error('Failed to fetch survey details:', error);
     } finally {
@@ -244,6 +264,159 @@ const SurveyDetail: React.FC = () => {
     }
   };
 
+  // ── Screener question handlers ──────────────────────────────────────────────
+  const addScreenerQuestion = () => {
+    setScreenerQuestions([
+      ...screenerQuestions,
+      {
+        questionText: '',
+        order: screenerQuestions.length,
+        type: 'mcq',
+        required: true,
+        options: [
+          { text: '', action: 'continue' },
+          { text: '', action: 'continue' }
+        ]
+      }
+    ]);
+  };
+
+  const loadRecommendedQuestions = () => {
+    if (screenerQuestions.length > 0 &&
+      !window.confirm('This will replace your current questions with a recommended starter set. Continue?')) {
+      return;
+    }
+    setScreenerQuestions([
+      { questionText: 'Full Name', order: 0, type: 'text', required: true, options: [] },
+      { questionText: 'Age', order: 1, type: 'number', required: true, options: [] },
+      {
+        questionText: 'Gender', order: 2, type: 'mcq', required: true, options: [
+          { text: 'Male', action: 'continue' },
+          { text: 'Female', action: 'continue' },
+          { text: 'Prefer not to say', action: 'continue' }
+        ]
+      },
+      { questionText: 'City / Location', order: 3, type: 'text', required: true, options: [] },
+      { questionText: 'Address', order: 4, type: 'textarea', required: false, options: [] },
+      {
+        questionText: 'Highest Qualification', order: 5, type: 'mcq', required: false, options: [
+          { text: 'High School', action: 'continue' },
+          { text: 'Graduate', action: 'continue' },
+          { text: 'Post Graduate', action: 'continue' },
+          { text: 'Doctorate', action: 'continue' },
+          { text: 'Other', action: 'continue' }
+        ]
+      },
+      {
+        questionText: 'Do you or any family member work in any of the following industries?',
+        order: 6, type: 'mcq', required: true, options: [
+          { text: 'Market Research', action: 'terminate' },
+          { text: 'Advertising / PR', action: 'terminate' },
+          { text: 'Journalism / Media', action: 'terminate' },
+          { text: 'None of the above', action: 'continue' }
+        ]
+      },
+      {
+        questionText: 'What is your profession?', order: 7, type: 'mcq', required: true, options: [
+          { text: 'Option A — set routing', action: 'continue' },
+          { text: 'Option B — set routing', action: 'continue' },
+          { text: 'None of these', action: 'terminate' }
+        ]
+      }
+    ]);
+  };
+
+  const removeScreenerQuestion = (qi: number) => {
+    setScreenerQuestions(screenerQuestions.filter((_, i) => i !== qi).map((q, i) => ({ ...q, order: i })));
+  };
+
+  const updateQuestionText = (qi: number, text: string) => {
+    const updated = [...screenerQuestions];
+    updated[qi] = { ...updated[qi], questionText: text };
+    setScreenerQuestions(updated);
+  };
+
+  const updateQuestionType = (qi: number, type: ScreenerQuestion['type']) => {
+    const updated = [...screenerQuestions];
+    const q = { ...updated[qi], type };
+    // Ensure MCQ has at least 2 options; non-mcq clears options
+    if (type === 'mcq') {
+      if (!q.options || q.options.length < 2) {
+        q.options = [{ text: '', action: 'continue' }, { text: '', action: 'continue' }];
+      }
+    } else {
+      q.options = [];
+    }
+    updated[qi] = q;
+    setScreenerQuestions(updated);
+  };
+
+  const updateQuestionRequired = (qi: number, required: boolean) => {
+    const updated = [...screenerQuestions];
+    updated[qi] = { ...updated[qi], required };
+    setScreenerQuestions(updated);
+  };
+
+  const addOption = (qi: number) => {
+    const updated = [...screenerQuestions];
+    updated[qi] = { ...updated[qi], options: [...updated[qi].options, { text: '', action: 'continue' }] };
+    setScreenerQuestions(updated);
+  };
+
+  const removeOption = (qi: number, oi: number) => {
+    const updated = [...screenerQuestions];
+    updated[qi] = { ...updated[qi], options: updated[qi].options.filter((_, i) => i !== oi) };
+    setScreenerQuestions(updated);
+  };
+
+  const updateOption = (qi: number, oi: number, field: 'text' | 'action', value: string) => {
+    const updated = [...screenerQuestions];
+    const opts = [...updated[qi].options];
+    opts[oi] = { ...opts[oi], [field]: value };
+    updated[qi] = { ...updated[qi], options: opts };
+    setScreenerQuestions(updated);
+  };
+
+  const handleSaveScreener = async () => {
+    // Validation
+    for (let qi = 0; qi < screenerQuestions.length; qi++) {
+      const q = screenerQuestions[qi];
+      if (!q.questionText.trim()) {
+        alert(`Question ${qi + 1} is missing its text.`);
+        return;
+      }
+      // Only MCQ questions need options
+      if (q.type === 'mcq') {
+        const validOptions = q.options.filter(o => o.text.trim());
+        if (validOptions.length < 2) {
+          alert(`Question ${qi + 1} (multiple choice) needs at least 2 options.`);
+          return;
+        }
+      }
+    }
+
+    setSavingScreener(true);
+    try {
+      const cleaned = screenerQuestions.map((q, i) => ({
+        questionText: q.questionText.trim(),
+        order: i,
+        type: q.type,
+        required: q.required,
+        options: q.type === 'mcq'
+          ? q.options.filter(o => o.text.trim()).map(o => ({ text: o.text.trim(), action: o.action }))
+          : []
+      }));
+      await axios.put(`/surveys/${id}`, { screenerQuestions: cleaned });
+      await fetchSurveyDetails();
+      alert('Screener questions saved successfully!');
+    } catch (error) {
+      console.error('Failed to save screener questions:', error);
+      alert('Failed to save screener questions. Please try again.');
+    } finally {
+      setSavingScreener(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -308,6 +481,7 @@ const SurveyDetail: React.FC = () => {
         <Tab label="Statistics" />
         <Tab label="Status Page URLs" />
         <Tab label="Thank You Pages" />
+        <Tab label="Screener Questions" />
         <Tab label="Configuration" />
       </Tabs>
 
@@ -879,8 +1053,149 @@ const SurveyDetail: React.FC = () => {
         </Grid>
       )}
 
+      {/* Screener Questions Tab */}
+      {tabValue === 4 && (
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h6">Screener Questions</Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button variant="text" onClick={loadRecommendedQuestions}>Load Recommended</Button>
+                <Button variant="outlined" onClick={addScreenerQuestion}>+ Add Question</Button>
+              </Box>
+            </Box>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              These questions are shown to the respondent <strong>before</strong> the survey, all on one page.
+              Use <strong>Short Text / Number / Long Text</strong> for profile fields (name, age, address), and <strong>Multiple Choice</strong> for
+              qualifying questions. On a multiple-choice option you can set <strong>Terminate</strong>, <strong>Quota Full</strong>, or <strong>Go to a specific survey link</strong>.
+              Leave empty to skip screening entirely.
+            </Alert>
+
+            {screenerQuestions.length === 0 && (
+              <Typography variant="body2" color="textSecondary" sx={{ fontStyle: 'italic', mb: 2 }}>
+                No screener questions yet. Click "Load Recommended" for a starter set, or "+ Add Question".
+              </Typography>
+            )}
+
+            {screenerQuestions.map((q, qi) => (
+              <Box key={qi} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 2.5, mb: 2.5 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                  <Typography variant="subtitle1" fontWeight={600} color="primary">
+                    Question {qi + 1}
+                  </Typography>
+                  <Button size="small" color="error" onClick={() => removeScreenerQuestion(qi)}>
+                    Remove Question
+                  </Button>
+                </Box>
+
+                <TextField
+                  fullWidth
+                  label="Question Text"
+                  placeholder="e.g. What is your profession?"
+                  value={q.questionText}
+                  onChange={(e) => updateQuestionText(qi, e.target.value)}
+                  sx={{ mb: 2 }}
+                />
+
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+                  <TextField
+                    size="small"
+                    select
+                    label="Question Type"
+                    value={q.type}
+                    onChange={(e) => updateQuestionType(qi, e.target.value as ScreenerQuestion['type'])}
+                    sx={{ width: 200 }}
+                    SelectProps={{ native: true }}
+                  >
+                    <option value="text">Short Text</option>
+                    <option value="number">Number</option>
+                    <option value="textarea">Long Text</option>
+                    <option value="mcq">Multiple Choice</option>
+                  </TextField>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={q.required}
+                        onChange={(e) => updateQuestionRequired(qi, e.target.checked)}
+                      />
+                    }
+                    label={q.required ? 'Required' : 'Optional'}
+                  />
+                </Box>
+
+                {q.type === 'mcq' ? (
+                  <>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                      Answer Options
+                    </Typography>
+
+                    {q.options.map((opt, oi) => (
+                      <Box key={oi} sx={{ display: 'flex', gap: 1.5, alignItems: 'center', mb: 1.5 }}>
+                        <TextField
+                          size="small"
+                          label={`Option ${oi + 1}`}
+                          placeholder="e.g. Dettol"
+                          value={opt.text}
+                          onChange={(e) => updateOption(qi, oi, 'text', e.target.value)}
+                          sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          size="small"
+                          select
+                          label="Action"
+                          value={opt.action}
+                          onChange={(e) => updateOption(qi, oi, 'action', e.target.value)}
+                          sx={{ width: 230 }}
+                          SelectProps={{ native: true }}
+                          helperText={opt.action.startsWith('survey:') ? 'Qualifies & opens this survey link' : ' '}
+                        >
+                          <option value="continue">Continue (default survey)</option>
+                          <option value="terminate">Terminate</option>
+                          <option value="quota_full">Quota Full</option>
+                          {(survey?.clientUrls || []).map((cu) => (
+                            <option key={cu.urlSlug} value={`survey:${cu.urlSlug}`}>
+                              Go to: {cu.name}
+                            </option>
+                          ))}
+                        </TextField>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => removeOption(qi, oi)}
+                          disabled={q.options.length <= 2}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
+
+                    <Button size="small" onClick={() => addOption(qi)} sx={{ mt: 0.5 }}>
+                      + Add Option
+                    </Button>
+                  </>
+                ) : (
+                  <Typography variant="body2" color="textSecondary" sx={{ fontStyle: 'italic' }}>
+                    The respondent will type their answer in a {q.type === 'number' ? 'number' : q.type === 'textarea' ? 'multi-line text' : 'text'} field. No qualifying logic on this type.
+                  </Typography>
+                )}
+              </Box>
+            ))}
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={handleSaveScreener}
+                disabled={savingScreener}
+              >
+                {savingScreener ? 'Saving...' : 'Save Screener Questions'}
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Configuration Tab */}
-      {tabValue === 4 && statusUrls && (
+      {tabValue === 5 && statusUrls && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 3 }}>

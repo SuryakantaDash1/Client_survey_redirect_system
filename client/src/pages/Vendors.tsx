@@ -92,6 +92,7 @@ const Vendors: React.FC = () => {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [surveyName, setSurveyName] = useState('');
   const [surveyClientUrls, setSurveyClientUrls] = useState<{ name: string; url: string; urlSlug: string }[]>([]);
+  const [surveyHasScreener, setSurveyHasScreener] = useState(false);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [openUrlDialog, setOpenUrlDialog] = useState(false);
@@ -120,6 +121,7 @@ const Vendors: React.FC = () => {
       const response = await axios.get(`/surveys/${surveyId}`);
       setSurveyName(response.data.data.name);
       setSurveyClientUrls(response.data.data.clientUrls || []);
+      setSurveyHasScreener((response.data.data.screenerQuestions || []).length > 0);
     } catch (error) {
       console.error('Failed to fetch survey name:', error);
     }
@@ -555,10 +557,12 @@ const Vendors: React.FC = () => {
             Entry URL (Share with Vendor)
           </Typography>
           <Typography variant="body2" color="textSecondary" gutterBottom sx={{ mb: 2 }}>
-            Share these URLs with the vendor. Each URL corresponds to a specific survey audience/link.
+            {surveyHasScreener
+              ? 'Share this single entry link with the vendor. The screener questions decide which survey link each respondent opens.'
+              : 'Share these URLs with the vendor. Each URL corresponds to a specific survey audience/link.'}
           </Typography>
 
-          {selectedVendor && surveyClientUrls.length > 0 ? (
+          {selectedVendor && surveyClientUrls.length > 0 && !surveyHasScreener ? (
             // Multiple client URLs — show one entry per URL
             surveyClientUrls.map((clientUrl, idx) => {
               const entryUrl = `${selectedVendorUrl.replace(/\/[^/]+$/, '')}/${selectedVendor.vendorSlug}/${clientUrl.urlSlug}`;
@@ -605,6 +609,11 @@ const Vendors: React.FC = () => {
                       {selectedVendorUrl}?{selectedVendor.entryParameter}={'{'}YOUR_ID{'}'}
                     </Typography>
                   </Box>
+                  {surveyHasScreener && (
+                    <Typography variant="caption" color="textSecondary">
+                      Respondents will see the screener questions first, then be routed to the correct survey link based on their answers.
+                    </Typography>
+                  )}
                 </Alert>
               )}
             </>

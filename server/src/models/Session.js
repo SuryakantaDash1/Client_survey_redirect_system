@@ -41,6 +41,22 @@ const sessionSchema = new mongoose.Schema({
     enum: ['active', 'complete', 'quota_full', 'terminate'],
     default: 'active'
   },
+  // Where the respondent should be sent after passing the screener
+  clientSurveyUrl: {
+    type: String
+  },
+  // Screener questionnaire responses
+  screenerAnswers: [{
+    questionText: String,
+    answerText: String,
+    action: String
+  }],
+  // Distinguishes a screener disqualification from a survey-side terminate
+  terminationSource: {
+    type: String,
+    enum: ['screener', 'survey', null],
+    default: null
+  },
   ipAddress: {
     type: String
   },

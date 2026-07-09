@@ -81,7 +81,33 @@ const surveySchema = new mongoose.Schema({
     type: String,
     required: true,
     default: 'Thank you for your participation'
-  }
+  },
+  // Pre-screening questionnaire (shown before the client survey)
+  screenerQuestions: [{
+    questionText: { type: String, required: true, trim: true },
+    order: { type: Number, default: 0 },
+    // Input type: text (short), number, textarea (long), mcq (multiple choice)
+    type: {
+      type: String,
+      enum: ['text', 'number', 'textarea', 'mcq'],
+      default: 'mcq'
+    },
+    required: { type: Boolean, default: true },
+    // options only used when type === 'mcq'
+    options: [{
+      text: { type: String, required: true, trim: true },
+      // action values:
+      //   'continue'    = qualify, go to the default/entry survey link
+      //   'terminate'   = disqualify
+      //   'quota_full'  = quota full page
+      //   'survey:<urlSlug>' = qualify and route to a specific client survey link
+      action: {
+        type: String,
+        default: 'continue',
+        trim: true
+      }
+    }]
+  }]
 }, {
   timestamps: true
 });

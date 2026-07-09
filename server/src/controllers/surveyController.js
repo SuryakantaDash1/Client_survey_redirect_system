@@ -86,6 +86,7 @@ exports.updateSurvey = async (req, res, next) => {
     if (req.body.terminatePageMessage !== undefined) survey.terminatePageMessage = req.body.terminatePageMessage;
     if (req.body.quotaFullPageMessage !== undefined) survey.quotaFullPageMessage = req.body.quotaFullPageMessage;
     if (req.body.securityTermPageMessage !== undefined) survey.securityTermPageMessage = req.body.securityTermPageMessage;
+    if (req.body.screenerQuestions !== undefined) survey.screenerQuestions = req.body.screenerQuestions;
 
     await survey.save();
 

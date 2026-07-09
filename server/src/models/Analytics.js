@@ -17,7 +17,7 @@ const analyticsSchema = new mongoose.Schema({
   },
   eventType: {
     type: String,
-    enum: ['entry', 'exit'],
+    enum: ['entry', 'exit', 'screener_pass', 'screener_exit'],
     required: true
   },
   status: {
