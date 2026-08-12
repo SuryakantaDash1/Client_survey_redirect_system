@@ -154,6 +154,13 @@ const Sessions: React.FC = () => {
     fetchFilters();
   }, []);
 
+  // Re-fetch from the server whenever the survey/vendor selection changes,
+  // so we always pull that survey's sessions instead of relying on a
+  // globally-limited window of the most recent sessions.
+  useEffect(() => {
+    fetchData();
+  }, [selectedSurvey, selectedVendor]);
+
   useEffect(() => {
     applyFilters();
   }, [sessions, tabValue, selectedSurvey, selectedVendor]);
@@ -184,8 +191,17 @@ const Sessions: React.FC = () => {
     setError(null);
     try {
       const params: any = {
-        limit: 500  // Get more sessions for better filtering
+        limit: 100000  // Pull all matching sessions (server filters below)
       };
+
+      // Let the SERVER filter by survey/vendor so we don't miss older
+      // sessions that fall outside a globally-limited recent window.
+      if (selectedSurvey !== 'all') {
+        params.surveyId = selectedSurvey;
+      }
+      if (selectedVendor !== 'all') {
+        params.vendorId = selectedVendor;
+      }
 
       const response = await axios.get('/sessions', { params });
       setSessions(response.data.data || []);
